@@ -1,0 +1,151 @@
+{
+  "name": "openai-for-copilot",
+  "publisher": "rangan2510",
+  "displayName": "OpenAI for Copilot",
+  "description": "Use OpenAI models in GitHub Copilot Chat through VS Code's Language Model Chat Provider API, with streaming, tool calling, and vision support.",
+  "icon": "assets/logo.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rangan2510/openai-for-copilot"
+  },
+  "homepage": "https://github.com/rangan2510/openai-for-copilot#readme",
+  "bugs": {
+    "url": "https://github.com/rangan2510/openai-for-copilot/issues"
+  },
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.116.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "openai",
+    "copilot",
+    "github copilot",
+    "vscode",
+    "chat",
+    "language model",
+    "gpt",
+    "ai"
+  ],
+  "galleryBanner": {
+    "color": "#0f172a",
+    "theme": "dark"
+  },
+  "license": "MIT",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "openai-for-copilot",
+        "displayName": "OpenAI for Copilot",
+        "managementCommand": "openai-for-copilot.manage"
+      }
+    ],
+    "commands": [
+      {
+        "command": "openai-for-copilot.manage",
+        "title": "Manage OpenAI for Copilot"
+      }
+    ],
+    "configuration": {
+      "title": "OpenAI for Copilot",
+      "properties": {
+        "openai-for-copilot.baseUrl": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Custom base URL for the OpenAI API (e.g., for Azure OpenAI or a proxy). Leave empty to use the default https://api.openai.com/v1.",
+          "scope": "resource"
+        },
+        "openai-for-copilot.organization": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "OpenAI organization ID. Only needed if your API key belongs to multiple organizations.",
+          "scope": "resource"
+        },
+        "openai-for-copilot.preferredModel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Preferred OpenAI model ID to use by default (e.g., 'gpt-4.1'). Leave empty to let Copilot choose.",
+          "scope": "resource"
+        },
+        "openai-for-copilot.reasoningEffort": {
+          "type": "string",
+          "default": "medium",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "enumDescriptions": [
+            "Maximum reasoning depth. Best for complex tasks.",
+            "Balanced reasoning and speed.",
+            "Fastest responses with minimal reasoning."
+          ],
+          "description": "Reasoning effort for o-series models (o3, o4-mini). Controls how much reasoning the model does before responding.",
+          "scope": "resource"
+        }
+      }
+    }
+  },
+  "main": "./dist/extension.js",
+  "scripts": {
+    "vscode:prepublish": "bun run package",
+    "download-api": "dts dev",
+    "postdownload-api": "dts main",
+    "postinstall": "bun run download-api",
+    "compile": "bun build --outdir ./dist --target=node --external=vscode --sourcemap=linked --format=cjs ./src/extension.ts",
+    "check-types": "tsgo --noEmit",
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "pretest": "tsgo",
+    "test": "vscode-test",
+    "package": "bun run compile",
+    "vsce:package": "bunx @vscode/vsce package --no-dependencies -o dist/extension.vsix"
+  },
+  "dependencies": {
+    "openai": "^6.34.0"
+  },
+  "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "4.7.1",
+    "@eslint/js": "10.0.1",
+    "@eslint/markdown": "8.0.1",
+    "@homer0/prettier-plugin-jsdoc": "11.1.0",
+    "@stylistic/eslint-plugin": "5.10.0",
+    "@types/mocha": "10.0.10",
+    "@types/node": "25.6.0",
+    "@types/vscode": "1.116.0",
+    "@typescript/native-preview": "7.0.0-dev.20260419.1",
+    "@vscode/dts": "0.4.1",
+    "@vscode/test-cli": "0.0.12",
+    "@vscode/test-electron": "2.5.2",
+    "eslint": "10.2.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-formatter-compact": "9.0.1",
+    "eslint-plugin-perfectionist": "5.8.0",
+    "eslint-plugin-sonarjs": "4.0.3",
+    "eslint-plugin-unicorn": "64.0.0",
+    "globals": "17.5.0",
+    "lefthook": "2.1.6",
+    "prettier": "3.8.3",
+    "prettier-plugin-organize-imports": "4.3.0",
+    "type-fest": "5.6.0",
+    "typescript-eslint": "8.58.2"
+  },
+  "trustedDependencies": [
+    "esbuild",
+    "lefthook"
+  ],
+  "packageManager": "bun"
+}
