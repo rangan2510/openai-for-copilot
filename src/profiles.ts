@@ -68,6 +68,12 @@ const MODEL_TOKEN_LIMITS: Record<string, ModelTokenLimits> = {
   "gpt-5.4-nano": { maxInputTokens: 1_047_576, maxOutputTokens: 16_384 },
   "gpt-5.4": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
 
+  // GPT-5.5
+  "gpt-5.5-pro": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
+  "gpt-5.5-mini": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
+  "gpt-5.5-nano": { maxInputTokens: 1_047_576, maxOutputTokens: 16_384 },
+  "gpt-5.5": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
+
   // o1-series reasoning models
   "o1-pro": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
   "o1": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },

@@ -1,4 +1,24 @@
-# OpenAI for Copilot
+<p align="center">
+  <img src="assets/logo.png" alt="OpenAI for Copilot" width="128" />
+</p>
+
+<h1 align="center">OpenAI for Copilot</h1>
+
+<p align="center">
+  <a href="https://github.com/rangan2510/openai-for-copilot/releases/latest"><img src="https://img.shields.io/github/v/release/rangan2510/openai-for-copilot?label=version" alt="Latest release" /></a>
+  <a href="https://github.com/rangan2510/openai-for-copilot/releases/latest"><img src="https://img.shields.io/github/downloads/rangan2510/openai-for-copilot/total" alt="Downloads" /></a>
+  <a href="https://github.com/rangan2510/openai-for-copilot/blob/main/LICENSE.txt"><img src="https://img.shields.io/github/license/rangan2510/openai-for-copilot" alt="License" /></a>
+  <img src="https://img.shields.io/badge/VS%20Code-%3E%3D1.116.0-blue" alt="VS Code version" />
+</p>
+
+### v0.1.0
+- Initial release with auto-discovery of all chat-capable OpenAI models
+- GPT-4o, GPT-4.1, GPT-4-turbo, GPT-5 through GPT-5.5, o1, o3, o4-mini
+- Streaming, tool calling, vision, reasoning effort control
+- `max_completion_tokens` handling for GPT-5+ and o-series models
+- Empty schema fix for OpenAI's strict function parameter validation
+
+---
 
 Bring your own OpenAI API key to VS Code and use any OpenAI chat model inside Copilot Chat -- no Copilot Pro+ required, no premium request limits, no admin gating.
 
@@ -43,7 +63,7 @@ The extension auto-discovers models from your account. Known families with tuned
 | GPT-4o / 4o-mini | 128K | 16K | Vision, fast |
 | GPT-4.1 / mini / nano | 1M | 32K | 1M context window |
 | GPT-5 / mini / nano | 1M | 16-64K | Current generation |
-| GPT-5.1 through 5.4 | 1M | 32-64K | Latest; 5.4 available without Pro+ |
+| GPT-5.1 through 5.5 | 1M | 16-64K | Latest; GPT-5.5 released April 2026 |
 | o1, o3, o3-mini, o4-mini | 200K | 100K | Reasoning models |
 
 Models not in the known list still work -- they get conservative defaults (128K input / 4K output). As OpenAI releases new models, they appear automatically.
