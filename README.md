@@ -24,24 +24,28 @@ Bring your own OpenAI API key to VS Code and use any OpenAI chat model inside Co
 
 This extension registers as a VS Code `LanguageModelChatProvider`, so models from your OpenAI account show up directly in the Copilot Chat model picker alongside the built-in options. You get the same native chat experience (agent mode, tool calling, inline edits) backed by whichever OpenAI model you choose to pay for.
 
+## A note on Copilot's upcoming billing changes
+
+GitHub paused new Pro/Pro+/Student sign-ups, tightened weekly token-based usage limits, and pulled some models from Pro plans on April 20, 2026 ([GitHub blog](https://github.blog/news-insights/company-news/changes-to-github-copilot-individual-plans/)). Reporting from [Where's Your Ed At](https://www.wheresyoured.at/exclusive-microsoft-moving-all-github-copilot-subscribers-to-token-based-billing-in-june/) and a [link post by Simon Willison](https://simonwillison.net/2026/Apr/22/changes-to-github-copilot/) indicate a broader shift to token-based consumption billing rolling out from June.
+
+This extension sidesteps the moving target. Your OpenAI API key, OpenAI's published per-token rates, no Microsoft markup, no premium-request multipliers, no weekly cap on agent runs. Use it as a drop-in inside Copilot Chat alongside whichever Copilot plan you keep.
+
 ## Why use this instead of Copilot's built-in OpenAI models?
 
-GitHub Copilot already offers a handful of OpenAI models. But the built-in integration has real limitations:
+GitHub Copilot already offers a handful of OpenAI models. The built-in integration is fine for casual use, but it has constraints this extension sidesteps:
 
 | | Built-in Copilot | This extension |
 |---|---|---|
-| **Pricing** | Premium request multipliers (GPT-5.4 costs 3x per request) | Pay-per-token via your OpenAI API key |
-| **Model access** | Curated subset; GPT-5.4 requires Pro+ | Every chat model on your OpenAI account |
-| **Retired models** | o3, o3-mini, o4-mini, GPT-5, GPT-5.1 removed | Still available if OpenAI serves them |
-| **Older models** | GPT-4o, GPT-4.1, GPT-4-turbo dropped | Still usable for cost-sensitive tasks |
-| **Nano/mini variants** | Limited availability | GPT-5-nano, GPT-5.4-nano, GPT-4.1-nano, etc. |
-| **Codex** | Separate Codex models and subscription tier | Not needed; use chat models directly |
-| **Rate limits** | Monthly premium request quota | Standard OpenAI API rate limits |
-| **Admin control** | Enterprise/Business admins gate model access | Your API key, your models |
-| **Custom endpoints** | No | Azure OpenAI, proxies, self-hosted |
-| **Model discovery** | Static list, updated by GitHub | Auto-discovered from your OpenAI account |
+| **Pricing** | Subscription + premium-request quotas; token-based billing rolling out from June 2026 | Pay-per-token directly to OpenAI at [their published rates](https://platform.openai.com/docs/pricing) |
+| **Premium-request multipliers** | Latest models cost up to 7.5x per request (e.g. GPT-5.5 = 7.5x) ([source](https://docs.github.com/en/copilot/reference/ai-models/supported-models)) | None -- you pay actual tokens used |
+| **Weekly usage caps** | Token-based weekly limits on Pro/Pro+/Student plans ([source](https://github.blog/news-insights/company-news/changes-to-github-copilot-individual-plans/)) | Standard OpenAI API rate limits (your account tier) |
+| **Plan gating** | Newer OpenAI models gated behind Pro+/Business/Enterprise (e.g. GPT-5.5); Business/Enterprise admins can disable models | Your key, every chat-capable model on your account |
+| **Model availability** | Curated list; older models (o3, o4-mini, GPT-5/5.1, GPT-4-turbo) removed; GPT-4o restricted to Free tier | Anything OpenAI still serves on your account, including legacy models |
+| **Sign-ups** | New Pro/Pro+/Student sign-ups paused as of April 2026 ([source](https://github.blog/news-insights/company-news/changes-to-github-copilot-individual-plans/)) | Works on Copilot Free; only requires the Copilot Chat extension |
+| **Model discovery** | Static list, updated by GitHub | Auto-discovered via `models.list()` on your account |
+| **Custom endpoints** | Copilot BYOK supports a few providers but not for Business/Enterprise ([docs](https://docs.github.com/en/copilot/how-tos/configure-personal-settings/use-bring-your-own-key)) | Any OpenAI-compatible endpoint (Azure OpenAI, proxies, self-hosted) |
 
-In short: if a model exists on your OpenAI account and supports chat completions, it shows up here. No waiting for GitHub to add it, no plan upgrade to unlock it, no multiplier eating your quota.
+In short: if a model exists on your OpenAI account and supports chat completions, it shows up here -- no plan upgrade to unlock it, no multiplier eating your quota, no weekly token cap.
 
 ## What it supports
 
