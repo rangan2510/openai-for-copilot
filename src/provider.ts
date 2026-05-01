@@ -102,7 +102,11 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
               maxInputTokens: limits.maxInputTokens,
               maxOutputTokens: limits.maxOutputTokens,
               name: model.name,
-              tooltip: `OpenAI - ${model.id}`,
+              tooltip: [
+                `OpenAI - ${model.id}`,
+                `Input limit: ${formatTokenLimit(limits.maxInputTokens)} tokens`,
+                `Output limit: ${formatTokenLimit(limits.maxOutputTokens)} tokens`,
+              ].join("\n"),
               version: "1.0.0",
             };
           });
@@ -267,4 +271,8 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
     }
     return Math.ceil(totalChars / 4);
   }
+}
+
+function formatTokenLimit(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
 }

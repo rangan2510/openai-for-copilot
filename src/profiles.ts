@@ -97,7 +97,7 @@ export function getModelProfile(modelId: string): ModelProfile {
 
   return {
     supportsReasoningEffort: isReasoningModel,
-    supportsTemperature: !isReasoningModel,
+    supportsTemperature: !isNewModel,
     supportsToolCalling: true,
     supportsVision: !isReasoningModel,
     useMaxCompletionTokens: isNewModel,
