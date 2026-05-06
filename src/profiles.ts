@@ -1,28 +1,25 @@
 /**
  * Model profiles and token limits for OpenAI models.
  *
- * OpenAI's API is more uniform than Bedrock's, so profiles are simpler.
- * The main distinctions are:
- * - Reasoning models (GPT-5+ and o-series) support reasoning_effort but not temperature
- * - Vision support varies by model
- * - Token limits differ per model
+ * Every model surfaced by this extension goes through the Responses API, so:
+ * - Reasoning support is the only meaningful capability flag.
+ * - All requests use `max_output_tokens` (Chat Completions's
+ *   `max_completion_tokens` does not apply).
  */
 
 import type { ApiReasoningEffort } from "./settings";
 
 export interface ModelProfile {
-  /** Whether the model supports reasoning_effort parameter */
+  /** Whether the model supports reasoning_effort (always sent via Responses `reasoning.effort`). */
   supportsReasoningEffort: boolean;
-  /** Supported reasoning_effort values for this model family */
+  /** Supported reasoning_effort values for this model family. */
   supportedReasoningEfforts: readonly ApiReasoningEffort[];
-  /** Whether the model supports tool calling */
+  /** Whether the model supports tool calling. */
   supportsToolCalling: boolean;
-  /** Whether the model supports vision (image inputs) */
+  /** Whether the model supports vision (image inputs). */
   supportsVision: boolean;
-  /** Whether the temperature parameter is supported */
+  /** Whether the temperature parameter is supported. */
   supportsTemperature: boolean;
-  /** Whether the model requires max_completion_tokens instead of max_tokens */
-  useMaxCompletionTokens: boolean;
 }
 
 export interface ModelTokenLimits {
@@ -31,11 +28,9 @@ export interface ModelTokenLimits {
 }
 
 /**
- * Known OpenAI models with their token limits.
- * Models not in this map get conservative defaults.
- * More-specific prefixes must appear before shorter ones that share the same
- * leading characters (e.g. "gpt-5.2-pro" before "gpt-5.2") so that the
- * longest-prefix lookup in getModelTokenLimits always returns the best match.
+ * Known OpenAI models with their token limits. Models not in this map get
+ * conservative defaults via longest-prefix lookup. More-specific prefixes must
+ * appear before shorter ones (e.g. "gpt-5.2-pro" before "gpt-5.2").
  */
 const MODEL_TOKEN_LIMITS: Record<string, ModelTokenLimits> = {
   // GPT-4-turbo
@@ -64,7 +59,7 @@ const MODEL_TOKEN_LIMITS: Record<string, ModelTokenLimits> = {
   "gpt-5.2": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
 
   // GPT-5.3
-  "gpt-5.3": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
+  "gpt-5.3": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
 
   // GPT-5.4
   "gpt-5.4-pro": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
@@ -92,23 +87,19 @@ const MODEL_TOKEN_LIMITS: Record<string, ModelTokenLimits> = {
 };
 
 export function getModelProfile(modelId: string): ModelProfile {
-  const isGpt5Model = modelId.startsWith("gpt-5");
-  const isReasoningModel =
-    isGpt5Model ||
+  const isOSeries =
     modelId.startsWith("o1") ||
     modelId.startsWith("o3") ||
     modelId.startsWith("o4");
-
-  // GPT-5+ and o-series require max_completion_tokens; GPT-4 family uses max_tokens
-  const isNewModel = isReasoningModel;
+  const isGpt5 = modelId.startsWith("gpt-5");
+  const isReasoningModel = isGpt5 || isOSeries;
 
   return {
     supportsReasoningEffort: isReasoningModel,
     supportedReasoningEfforts: getSupportedReasoningEfforts(modelId),
-    supportsTemperature: !isNewModel,
+    supportsTemperature: !isReasoningModel,
     supportsToolCalling: true,
-    supportsVision: !modelId.startsWith("o"),
-    useMaxCompletionTokens: isNewModel,
+    supportsVision: !isOSeries,
   };
 }
 
@@ -143,13 +134,10 @@ function getSupportedReasoningEfforts(
 }
 
 export function getModelTokenLimits(modelId: string): ModelTokenLimits {
-  // Check exact match first
   if (MODEL_TOKEN_LIMITS[modelId]) {
     return MODEL_TOKEN_LIMITS[modelId];
   }
 
-  // Find the longest matching prefix for best specificity
-  // (e.g. "gpt-5.2-pro-2025-12-11" matches "gpt-5.2-pro" over "gpt-5.2")
   let bestMatch: ModelTokenLimits | undefined;
   let bestLength = 0;
 

@@ -1,13 +1,17 @@
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 
 /**
- * Validate converted OpenAI messages before sending to the API.
+ * Validate Responses API input items before sending to /v1/responses.
  *
- * OpenAI is less strict than Bedrock about message ordering, but we still
- * enforce basic sanity checks.
+ * The Responses API tolerates a wider variety of orderings than Chat
+ * Completions (function_call_output items can appear anywhere), so we only
+ * enforce a minimum-content guard here.
  */
-export function validateMessages(messages: ChatCompletionMessageParam[]): void {
-  if (messages.length === 0) {
-    throw new Error("Messages array cannot be empty");
+export function validateInput(
+  input: ResponseInputItem[],
+  instructions: string | undefined,
+): void {
+  if (input.length === 0 && !instructions) {
+    throw new Error("Input cannot be empty");
   }
 }

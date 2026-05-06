@@ -1,4 +1,8 @@
 import type {
+  ResponseCreateParamsStreaming,
+  ResponseInputItem,
+} from "openai/resources/responses/responses";
+import type {
   CancellationToken,
   LanguageModelChatInformation,
   LanguageModelChatMessage,
@@ -8,15 +12,16 @@ import type {
 } from "vscode";
 import * as vscode from "vscode";
 
+import { ConversationIndex } from "./conversation-index";
 import { convertMessages } from "./converters/messages";
 import { convertTools } from "./converters/tools";
 import { logger } from "./logger";
 import { OpenAIAPIClient } from "./openai-client";
 import { getModelProfile, getModelTokenLimits } from "./profiles";
+import type { ApiReasoningEffort } from "./settings";
 import { getOpenAISettings } from "./settings";
 import { StreamProcessor } from "./stream-processor";
-import type { ApiReasoningEffort } from "./settings";
-import { validateMessages } from "./validation";
+import { validateInput } from "./validation";
 
 export class OpenAIChatModelProvider
   implements vscode.Disposable, LanguageModelChatProvider
@@ -29,9 +34,11 @@ export class OpenAIChatModelProvider
   private client: OpenAIAPIClient | undefined;
   private initialFetchComplete = false;
   private readonly streamProcessor: StreamProcessor;
+  private readonly conversationIndex: ConversationIndex;
 
   constructor(private readonly secrets: vscode.SecretStorage) {
     this.streamProcessor = new StreamProcessor();
+    this.conversationIndex = new ConversationIndex();
   }
 
   public dispose(): void {
@@ -40,6 +47,7 @@ export class OpenAIChatModelProvider
     } catch {
       // ignore
     }
+    this.conversationIndex.clear();
   }
 
   public isInitialFetchComplete(): boolean {
@@ -121,10 +129,9 @@ export class OpenAIChatModelProvider
           });
 
           if (infos.length === 0) {
-            throw new Error("No chat-capable OpenAI models found");
+            throw new Error("No Responses-capable OpenAI models found");
           }
 
-          // Sort by name
           infos.sort((a, b) => a.name.localeCompare(b.name));
 
           this.initialFetchComplete = true;
@@ -155,7 +162,9 @@ export class OpenAIChatModelProvider
       if (!options.silent) {
         logger.error("[OpenAI Provider] Failed to fetch models", error);
         vscode.window.showErrorMessage(
-          `Failed to fetch OpenAI models: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to fetch OpenAI models: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       }
       return [];
@@ -181,30 +190,55 @@ export class OpenAIChatModelProvider
       const settings = getOpenAISettings();
       const modelProfile = getModelProfile(model.id);
 
-      // Convert messages
-      const converted = convertMessages(messages);
-      validateMessages(converted.messages);
+      const sessionKey = ConversationIndex.computeKey(messages);
 
-      // Convert tools
+      // Decide whether we can ride a stored conversation. If yes, send only
+      // the new tail of the message list and pass `previous_response_id`.
+      let inputMessages: readonly LanguageModelChatMessage[] = messages;
+      let previousResponseId: string | undefined;
+
+      if (settings.storeConversations && sessionKey) {
+        const cached = this.conversationIndex.lookup(
+          sessionKey,
+          messages.length,
+        );
+        if (cached) {
+          inputMessages = messages.slice(cached.skipCount);
+          previousResponseId = cached.responseId;
+          logger.debug("[OpenAI Provider] Resuming stored conversation", {
+            previousResponseId,
+            skipCount: cached.skipCount,
+            tailMessages: inputMessages.length,
+          });
+        }
+      }
+
+      const converted = convertMessages(inputMessages);
+      validateInput(converted.input, converted.instructions);
+
       const toolConfig = convertTools(options);
 
-      // Build request parameters
       const maxTokens =
         typeof options.modelOptions?.max_tokens === "number"
           ? options.modelOptions.max_tokens
           : model.maxOutputTokens;
 
-      const requestParams: Record<string, unknown> = {
+      const requestParams: ResponseCreateParamsStreaming = {
         model: model.id,
-        messages: converted.messages,
+        input: converted.input as ResponseInputItem[],
         stream: true,
-        // GPT-5+ and o-series require max_completion_tokens; older models use max_tokens
-        ...(modelProfile.useMaxCompletionTokens
-          ? { max_completion_tokens: maxTokens }
-          : { max_tokens: maxTokens }),
+        store: settings.storeConversations,
+        max_output_tokens: maxTokens,
       };
 
-      // Add temperature (not supported by reasoning models)
+      if (converted.instructions) {
+        requestParams.instructions = converted.instructions;
+      }
+
+      if (previousResponseId) {
+        requestParams.previous_response_id = previousResponseId;
+      }
+
       if (modelProfile.supportsTemperature) {
         requestParams.temperature =
           typeof options.modelOptions?.temperature === "number"
@@ -212,19 +246,16 @@ export class OpenAIChatModelProvider
             : 0.7;
       }
 
-      // Add reasoning_effort for GPT-5+ and o-series models when explicitly configured.
       if (modelProfile.supportsReasoningEffort) {
-        const reasoningEffort = resolveReasoningEffort(
+        const effort = resolveReasoningEffort(
           settings.reasoningEffort,
           modelProfile.supportedReasoningEfforts,
         );
-
-        if (reasoningEffort) {
-          requestParams.reasoning_effort = reasoningEffort;
+        if (effort) {
+          requestParams.reasoning = { effort };
         }
       }
 
-      // Add tools
       if (toolConfig) {
         requestParams.tools = toolConfig.tools;
         if (toolConfig.toolChoice) {
@@ -232,35 +263,49 @@ export class OpenAIChatModelProvider
         }
       }
 
-      // Add top_p and stop if provided
       if (typeof options.modelOptions?.top_p === "number") {
         requestParams.top_p = options.modelOptions.top_p;
       }
-      if (options.modelOptions?.stop) {
-        requestParams.stop = options.modelOptions.stop;
-      }
 
-      logger.info("[OpenAI Provider] Sending chat request", {
-        messageCount: converted.messages.length,
+      logger.info("[OpenAI Provider] Sending /v1/responses request", {
+        hasPreviousResponseId: Boolean(previousResponseId),
         modelId: model.id,
+        store: settings.storeConversations,
         toolCount: toolConfig?.tools.length ?? 0,
+        inputItems: converted.input.length,
       });
 
-      // Start streaming
       const abortController = new AbortController();
       const cancellationListener = token.onCancellationRequested(() => {
         abortController.abort();
       });
 
       try {
-        const stream = await this.client.startChatStream(
-          requestParams as unknown as Parameters<
-            OpenAIAPIClient["startChatStream"]
-          >[0],
+        const stream = await this.client.startResponsesStream(
+          requestParams,
           abortController.signal,
         );
 
-        await this.streamProcessor.processStream(stream, progress, token);
+        const result = await this.streamProcessor.processStream(
+          stream,
+          progress,
+          token,
+          { showReasoning: settings.showReasoning },
+        );
+
+        if (
+          settings.storeConversations &&
+          sessionKey &&
+          result.responseId &&
+          !token.isCancellationRequested
+        ) {
+          this.conversationIndex.record(
+            sessionKey,
+            result.responseId,
+            messages.length,
+          );
+        }
+
         logger.info("[OpenAI Provider] Chat request completed");
       } finally {
         cancellationListener.dispose();
@@ -273,6 +318,19 @@ export class OpenAIChatModelProvider
             : String(error),
         modelId: model.id,
       });
+
+      // If the server rejected our previous_response_id (e.g. it was deleted
+      // or store was disabled mid-conversation), drop the cache entry so the
+      // next attempt starts fresh.
+      const sessionKey = ConversationIndex.computeKey(messages);
+      if (
+        sessionKey &&
+        error instanceof Error &&
+        /previous_response_id/i.test(error.message)
+      ) {
+        this.conversationIndex.invalidate(sessionKey);
+      }
+
       throw error;
     }
   }
@@ -282,9 +340,9 @@ export class OpenAIChatModelProvider
     text: LanguageModelChatMessage | string,
     _token: CancellationToken,
   ): Promise<number> {
-    // Simple estimation: ~4 characters per token
-    // OpenAI does not have a dedicated token counting API endpoint.
-    // For more accurate counts, tiktoken could be used as a dependency.
+    // Simple estimation: ~4 characters per token. OpenAI does not expose a
+    // dedicated token-counting endpoint; tiktoken would add weight without
+    // adding much value for the way Copilot uses these counts.
     if (typeof text === "string") {
       return Math.ceil(text.length / 4);
     }

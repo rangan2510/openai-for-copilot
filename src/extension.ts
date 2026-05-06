@@ -5,7 +5,10 @@ import { logger } from "./logger";
 import { OpenAIChatModelProvider } from "./provider";
 
 export function activate(context: vscode.ExtensionContext) {
-  const outputChannel = vscode.window.createOutputChannel("OpenAI for Copilot", { log: true });
+  const outputChannel = vscode.window.createOutputChannel(
+    "OpenAI for Copilot",
+    { log: true },
+  );
   logger.initialize(outputChannel, context.extensionMode);
 
   logger.info(
@@ -32,7 +35,9 @@ export function activate(context: vscode.ExtensionContext) {
       e.affectsConfiguration("openai-for-copilot.baseUrl") ||
       e.affectsConfiguration("openai-for-copilot.organization") ||
       e.affectsConfiguration("openai-for-copilot.preferredModel") ||
-      e.affectsConfiguration("openai-for-copilot.reasoningEffort")
+      e.affectsConfiguration("openai-for-copilot.reasoningEffort") ||
+      e.affectsConfiguration("openai-for-copilot.showReasoning") ||
+      e.affectsConfiguration("openai-for-copilot.storeConversations")
     ) {
       provider.notifyModelInformationChanged("configuration changed");
     }
@@ -61,7 +66,9 @@ export function activate(context: vscode.ExtensionContext) {
   let lmRefreshHandle: ReturnType<typeof setTimeout> | undefined;
   const lmDisposable = vscode.lm.onDidChangeChatModels(() => {
     if (!provider.isInitialFetchComplete()) {
-      logger.debug("[Extension] Ignoring onDidChangeChatModels before initial fetch complete");
+      logger.debug(
+        "[Extension] Ignoring onDidChangeChatModels before initial fetch complete",
+      );
       return;
     }
     if (lmRefreshHandle) {

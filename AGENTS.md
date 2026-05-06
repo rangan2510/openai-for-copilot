@@ -4,7 +4,7 @@
 
 A VS Code extension that integrates OpenAI models (GPT-4o, GPT-4.1, GPT-5.2, o3, o4-mini) into GitHub Copilot Chat using VS Code's `LanguageModelChatProvider` API. Auth is via OpenAI API key.
 
-Derived from the architecture of [amazon-bedrock-copilot-chat](https://github.com/tinovyatkin/amazon-bedrock-copilot-chat), adapted for the OpenAI Chat Completions API.
+Derived from the architecture of [amazon-bedrock-copilot-chat](https://github.com/tinovyatkin/amazon-bedrock-copilot-chat), adapted for the OpenAI Responses API (`/v1/responses`).
 
 ## Project Structure and Module Organization
 
@@ -51,10 +51,10 @@ Derived from the architecture of [amazon-bedrock-copilot-chat](https://github.co
 
 - **Auth**: API key only (stored in `SecretStorage`). No AWS profiles/credentials/regions.
 - **SDK**: Single `openai` npm package. No AWS SDK.
-- **API**: OpenAI Chat Completions API with SSE streaming. No Bedrock Converse API.
+- **API**: OpenAI Responses API (`/v1/responses`) with SSE streaming. Chat Completions is not used.
 - **Models**: Discovered via `client.models.list()`. No inference profiles.
-- **Thinking**: GPT-5.x and o-series models use `reasoning_effort`; unsupported effort values are ignored per model.
-- **Prompt caching**: Handled server-side by OpenAI. No client-side cache points.
+- **Thinking**: GPT-5.x and o-series models use `reasoning.effort`; unsupported effort values are ignored per model. Reasoning text streams inline by default (toggle via `showReasoning`).
+- **Prompt caching**: Handled server-side by OpenAI. With `storeConversations` on, the provider also threads `previous_response_id` so follow-up turns skip resending earlier messages.
 - **Token counting**: Estimation via char/4 heuristic. No dedicated API endpoint.
 
 ## File Organization
@@ -62,19 +62,20 @@ Derived from the architecture of [amazon-bedrock-copilot-chat](https://github.co
 ```text
 src/
   extension.ts              # Entry point, activation
-  provider.ts               # Main LanguageModelChatProvider
-  openai-client.ts          # OpenAI SDK wrapper
-  stream-processor.ts       # SSE stream event handler
-  tool-buffer.ts            # JSON accumulator for streaming tools
+  provider.ts               # Main LanguageModelChatProvider (Responses transport)
+  openai-client.ts          # OpenAI SDK wrapper around responses.create
+  stream-processor.ts       # Handles /v1/responses streaming events
+  tool-buffer.ts            # JSON accumulator for streaming tool calls (keyed by item_id)
+  conversation-index.ts     # Tracks previous_response_id per session
   profiles.ts               # Model capability profiles and token limits
   settings.ts               # Configuration reader
   logger.ts                 # Centralized logging
-  validation.ts             # Message validation
+  validation.ts             # Responses input validation
   types.ts                  # TypeScript interfaces
   commands/
-    manage-settings.ts      # Settings UI (API key, base URL, org)
+    manage-settings.ts      # Settings UI (API key, base URL, org, reasoning, toggles)
   converters/
-    messages.ts             # VSCode messages -> OpenAI ChatCompletionMessageParam
-    tools.ts                # VSCode tools -> OpenAI ChatCompletionTool
+    messages.ts             # VSCode messages -> Responses input[] + instructions
+    tools.ts                # VSCode tools -> Responses FunctionTool
     schema.ts               # JSON Schema passthrough
 ```

@@ -2,7 +2,7 @@
   "name": "openai-for-copilot",
   "publisher": "rangan2510",
   "displayName": "OpenAI for Copilot",
-  "description": "Use OpenAI models in GitHub Copilot Chat through VS Code's Language Model Chat Provider API, with streaming, tool calling, and vision support.",
+  "description": "Use OpenAI models in GitHub Copilot Chat through VS Code's Language Model Chat Provider API, with streaming, tool calling, vision, and reasoning via the OpenAI Responses API.",
   "icon": "assets/logo.png",
   "repository": {
     "type": "git",
@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/rangan2510/openai-for-copilot/issues"
   },
-  "version": "0.1.1",
+  "version": "0.2.0",
   "engines": {
     "vscode": "^1.116.0"
   },
@@ -100,7 +100,19 @@
             "High reasoning depth for complex tasks.",
             "Extra-high reasoning depth, supported by GPT-5.2 and later."
           ],
-          "description": "Reasoning effort for GPT-5.x and o-series models. Unsupported values are ignored per model.",
+          "description": "Reasoning effort for GPT-5.x and o-series models on the Responses API. Unsupported values are ignored per model.",
+          "scope": "resource"
+        },
+        "openai-for-copilot.showReasoning": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show streamed model reasoning text inline before the final answer. Disable to hide reasoning content.",
+          "scope": "resource"
+        },
+        "openai-for-copilot.storeConversations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Store conversations on OpenAI's servers (`store: true`) so subsequent turns can reuse `previous_response_id` and skip resending prior messages. Disable for stateless requests.",
           "scope": "resource"
         }
       }

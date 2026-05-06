@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A VS Code extension that integrates OpenAI models (GPT-4o, GPT-4.1, GPT-5.2, o3, o4-mini) into GitHub Copilot Chat using VS Code's `LanguageModelChatProvider` API. Uses the `openai` npm package for API calls.
+A VS Code extension that integrates OpenAI models (GPT-4o, GPT-4.1, GPT-5.x, o1, o3, o4-mini) into GitHub Copilot Chat using VS Code's `LanguageModelChatProvider` API. All requests go through the OpenAI Responses API (`/v1/responses`).
 
 ## Essential Commands
 
@@ -29,9 +29,10 @@ bun run test             # Run tests
 ### Core Flow
 
 1. **Extension activation** (extension.ts) -> Registers `OpenAIChatModelProvider` with VS Code
-2. **Model listing** -> `OpenAIAPIClient` fetches available models via `client.models.list()`
-3. **Chat requests** -> Messages converted to OpenAI format -> Streamed via `chat.completions.create({ stream: true })`
-4. **Stream processing** -> `StreamProcessor` handles `ChatCompletionChunk` events
+2. **Model listing** -> `OpenAIAPIClient` fetches models via `client.models.list()` and filters to Responses-capable IDs
+3. **Chat requests** -> Messages -> Responses `input[]` + `instructions` -> `responses.create({ stream: true })`
+4. **Stream processing** -> `StreamProcessor` handles `ResponseStreamEvent` union (output_text, function_call_arguments, reasoning_text, etc.)
+5. **Stored conversations** -> `ConversationIndex` records `response.id` per session and threads `previous_response_id` on follow-up turns
 
 ### Key Components
 
@@ -45,25 +46,28 @@ bun run test             # Run tests
 **OpenAI Integration** (src/openai-client.ts)
 
 - `OpenAIAPIClient`: Wraps `openai` SDK client
-- `fetchModels()`: Lists and filters chat-capable models
-- `startChatStream()`: Starts a streaming chat completion
+- `fetchModels()`: Lists and filters Responses-capable chat models
+- `startResponsesStream()`: Starts a streaming `responses.create` call
 
 **Message Conversion** (src/converters/)
 
-- `messages.ts`: VS Code messages -> OpenAI `ChatCompletionMessageParam[]`
-- `tools.ts`: VS Code tools -> OpenAI `ChatCompletionTool[]`
-- `schema.ts`: JSON Schema passthrough (both APIs use JSON Schema)
+- `messages.ts`: VS Code messages -> Responses `input[]` plus a top-level `instructions` string
+- `tools.ts`: VS Code tools -> Responses `FunctionTool` (flat shape, no nested `function:` wrapper)
+- `schema.ts`: JSON Schema passthrough
 
 **Stream Processing** (src/stream-processor.ts)
 
-- Processes OpenAI `ChatCompletionChunk` SSE events
-- `delta.content` -> Text parts
-- `delta.tool_calls` -> Accumulated via ToolBuffer, emitted on `finish_reason: "tool_calls"`
+- Processes the `ResponseStreamEvent` union from `/v1/responses`
+- `response.output_text.delta` -> Text parts
+- `response.reasoning_text.delta` and `response.reasoning_summary_text.delta` -> Inline reasoning text (gated by `showReasoning`)
+- `response.function_call_arguments.delta` -> Accumulated via `ToolBuffer` keyed by `item_id`
+- `response.function_call_arguments.done` -> Finalized and emitted as `LanguageModelToolCallPart`
+- Captures `response.id` from `response.completed` for `previous_response_id`
 
 **Configuration** (src/commands/manage-settings.ts, src/settings.ts)
 
 - API key stored in VS Code `SecretStorage`
-- Settings: base URL, organization, preferred model, reasoning effort
+- Settings: base URL, organization, preferred model, reasoning effort, `showReasoning`, `storeConversations`
 
 **Logging** (src/logger.ts)
 
@@ -72,9 +76,10 @@ bun run test             # Run tests
 
 ### Model Capabilities (src/profiles.ts)
 
-- **Reasoning models** (GPT-5.x, o3, o4-mini): Support `reasoning_effort`, no `temperature`
+- **Reasoning models** (GPT-5.x, o1, o3, o4-mini): Support `reasoning.effort`, no `temperature`
 - **GPT-4 models**: Support temperature, vision, tool calling
 - **GPT-5 models**: Support reasoning effort, vision, tool calling; do not use temperature
+- All requests use `max_output_tokens` (Responses API field; Chat Completions's `max_completion_tokens` does not apply)
 - Token limits are hardcoded per known model family with conservative defaults for unknown models
 
 ## Configuration Files

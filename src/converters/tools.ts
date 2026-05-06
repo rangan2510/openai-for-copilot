@@ -1,41 +1,51 @@
-import type { ChatCompletionTool, ChatCompletionToolChoiceOption } from "openai/resources/chat/completions";
+import type {
+  FunctionTool,
+  ResponseCreateParams,
+} from "openai/resources/responses/responses";
 import type { LanguageModelChatTool } from "vscode";
-import { type LanguageModelChatProvider, LanguageModelChatToolMode } from "vscode";
+import {
+  type LanguageModelChatProvider,
+  LanguageModelChatToolMode,
+} from "vscode";
 
 import { logger } from "../logger";
 import { convertSchema } from "./schema";
 
-interface ToolConfig {
-  tools: ChatCompletionTool[];
-  toolChoice?: ChatCompletionToolChoiceOption;
+interface ResponsesToolConfig {
+  tools: FunctionTool[];
+  toolChoice?: ResponseCreateParams["tool_choice"];
 }
 
 /**
- * Convert VSCode tools to OpenAI Chat Completions tool format.
+ * Convert VSCode tools to OpenAI Responses API tool format.
+ *
+ * Responses uses a flat tool shape:
+ *   { type: "function", name, description, parameters, strict }
+ * (no nested `function:` wrapper, unlike Chat Completions).
  */
 export function convertTools(
-  options: Parameters<LanguageModelChatProvider["provideLanguageModelChatResponse"]>[2],
-): ToolConfig | undefined {
+  options: Parameters<
+    LanguageModelChatProvider["provideLanguageModelChatResponse"]
+  >[2],
+): ResponsesToolConfig | undefined {
   if (!options.tools || options.tools.length === 0) {
     return undefined;
   }
 
-  logger.debug(`Converting ${options.tools.length} tools`);
+  logger.debug(`Converting ${options.tools.length} tools (Responses API)`);
 
-  const tools: ChatCompletionTool[] = options.tools.map(
-    (tool: LanguageModelChatTool): ChatCompletionTool => ({
+  const tools: FunctionTool[] = options.tools.map(
+    (tool: LanguageModelChatTool): FunctionTool => ({
       type: "function",
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: convertSchema(tool.inputSchema),
-      },
+      name: tool.name,
+      description: tool.description,
+      parameters: convertSchema(tool.inputSchema),
+      strict: false,
     }),
   );
 
-  const config: ToolConfig = { tools };
+  const config: ResponsesToolConfig = { tools };
 
-  // Map VSCode tool mode to OpenAI tool_choice
   if (options.toolMode !== undefined) {
     if (options.toolMode === LanguageModelChatToolMode.Required) {
       config.toolChoice = "required";
@@ -44,6 +54,5 @@ export function convertTools(
     }
   }
 
-  logger.debug("Tool configuration created successfully");
   return config;
 }

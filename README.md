@@ -11,6 +11,17 @@
   <img src="https://img.shields.io/badge/VS%20Code-%3E%3D1.116.0-blue" alt="VS Code version" />
 </p>
 
+### v0.2.0
+
+- Migrated to OpenAI's Responses API (`/v1/responses`) for every request
+- Inline streaming of model reasoning text alongside answers (toggle via `showReasoning`)
+- Stored conversations with `previous_response_id` so follow-up turns skip resending prior messages (toggle via `storeConversations`)
+- Legacy Chat Completions-only models are no longer surfaced in the picker
+
+### v0.1.2
+
+- Drop `reasoning_effort` automatically when GPT-5.x requests include function tools, because OpenAI's `/v1/chat/completions` rejects that combination
+
 ### v0.1.1
 
 - Added GPT-5.x reasoning effort support, including `none`, `minimal`, and `xhigh`
@@ -59,9 +70,10 @@ In short: if a model exists on your OpenAI account and supports chat completions
 - **Streaming** -- responses stream into the chat UI token by token
 - **Tool calling** -- full support for Copilot's tool/function calling protocol with streaming argument accumulation
 - **Vision** -- send images to multimodal models (GPT-4o, GPT-4.1, GPT-5 family)
-- **Reasoning models** -- GPT-5.x plus o1, o3, o3-mini, o4-mini with configurable reasoning effort
+- **Reasoning models** -- GPT-5.x plus o1, o3, o3-mini, o4-mini with configurable reasoning effort and inline reasoning streaming
+- **Stored conversations** -- reuses `previous_response_id` so follow-up turns send only the new tail of the chat
 - **Agent mode** -- works with VS Code's agent mode, inline edits, and ask mode
-- **Auto-discovery** -- queries `models.list()` on your OpenAI account and filters to chat-capable models
+- **Auto-discovery** -- queries `models.list()` on your OpenAI account and filters to Responses-capable chat models
 - **Custom base URL** -- point at Azure OpenAI, a corporate proxy, or any OpenAI-compatible endpoint
 
 ## Available model families
@@ -98,23 +110,25 @@ Optional: set a preferred model, custom base URL, or organization ID in the same
 
 ## Settings
 
-| Setting                              | Description                                                                                                           |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `openai-for-copilot.baseUrl`         | Custom API base URL (Azure OpenAI, proxy, etc.)                                                                       |
-| `openai-for-copilot.organization`    | OpenAI organization ID (only needed for multi-org keys)                                                               |
-| `openai-for-copilot.preferredModel`  | Default model ID (e.g. `gpt-5.4`)                                                                                     |
-| `openai-for-copilot.reasoningEffort` | Reasoning depth for GPT-5.x and o-series models: `model-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| Setting                                 | Description                                                                                                           |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `openai-for-copilot.baseUrl`            | Custom API base URL (Azure OpenAI, proxy, etc.)                                                                       |
+| `openai-for-copilot.organization`       | OpenAI organization ID (only needed for multi-org keys)                                                               |
+| `openai-for-copilot.preferredModel`     | Default model ID (e.g. `gpt-5.4`)                                                                                     |
+| `openai-for-copilot.reasoningEffort`    | Reasoning depth for GPT-5.x and o-series models: `model-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `openai-for-copilot.showReasoning`      | Stream model reasoning text inline before the final answer (default: on)                                              |
+| `openai-for-copilot.storeConversations` | Use OpenAI-stored conversations and `previous_response_id` for follow-up turns (default: on)                          |
 
 ## How it works
 
 The extension uses VS Code's `LanguageModelChatProvider` API -- the same interface that powers Copilot's own model integrations. When you pick an OpenAI model in the chat picker:
 
-1. Your messages get converted from VS Code's format to OpenAI's Chat Completions API format
-2. The request streams via the `openai` npm package to the API
-3. SSE chunks get parsed back into VS Code's response format (text parts and tool calls)
-4. Tool call arguments accumulate across chunks and emit when `finish_reason` signals completion
+1. Your messages get converted from VS Code's format to OpenAI's Responses API `input[]` shape, with system messages folded into top-level `instructions`
+2. The request streams via `client.responses.create({ stream: true })`
+3. Streaming events get parsed back into VS Code's response format: `output_text.delta` -> text parts, `function_call_arguments` -> accumulated tool calls, optional `reasoning_text.delta` -> inline reasoning text
+4. With `storeConversations` on, the response id is cached per session and sent as `previous_response_id` on the next turn so the prior history does not need to be resent
 
-The extension handles the quirks: `max_completion_tokens` vs `max_tokens` for newer models, stripping `temperature` from reasoning models, injecting `reasoning_effort`, and ensuring object schemas always have a `properties` field (an OpenAI requirement that VS Code doesn't enforce).
+The extension handles the quirks: `max_output_tokens` for every request, stripping `temperature` from reasoning models, injecting `reasoning.effort` only for supported levels, and ensuring object tool schemas always have a `properties` field (an OpenAI requirement that VS Code doesn't enforce). Legacy Chat Completions-only models are filtered out of the picker.
 
 ## Development
 

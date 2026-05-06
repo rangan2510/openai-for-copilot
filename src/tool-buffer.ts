@@ -3,64 +3,88 @@ import type { JsonValue } from "type-fest" with { "resolution-mode": "import" };
 import { logger } from "./logger";
 
 interface ToolCall {
-  id: string;
+  callId: string;
   input: unknown;
+  itemId: string;
   name: string;
 }
 
+/**
+ * Buffers streaming function-call arguments coming from the Responses API.
+ *
+ * Responses API streams function-call arguments via
+ * `response.function_call_arguments.delta` events keyed by `item_id`.
+ * The terminating `response.function_call_arguments.done` event carries the
+ * full argument string and the function `name`.
+ *
+ * Each tool call in a single response gets a unique `item_id`.
+ */
 export class ToolBuffer {
-  private readonly emittedIndices = new Set<number>();
-  private readonly inputBuffers = new Map<number, string>();
-  private readonly tools = new Map<number, ToolCall>();
+  private readonly emittedItemIds = new Set<string>();
+  private readonly inputBuffers = new Map<string, string>();
+  private readonly tools = new Map<string, ToolCall>();
 
-  appendInput(index: number, inputChunk: string): void {
-    const current = this.inputBuffers.get(index) ?? "";
-    this.inputBuffers.set(index, current + inputChunk);
+  appendInput(itemId: string, inputChunk: string): void {
+    const current = this.inputBuffers.get(itemId) ?? "";
+    this.inputBuffers.set(itemId, current + inputChunk);
   }
 
   clear(): void {
     this.tools.clear();
     this.inputBuffers.clear();
-    this.emittedIndices.clear();
+    this.emittedItemIds.clear();
   }
 
-  finalizeTool(index: number): ToolCall | undefined {
-    const tool = this.tools.get(index);
-    const inputStr = this.inputBuffers.get(index);
+  clearInput(itemId: string): void {
+    this.inputBuffers.set(itemId, "");
+  }
 
-    if (!tool || !inputStr) {
+  finalizeTool(itemId: string): ToolCall | undefined {
+    const tool = this.tools.get(itemId);
+    if (!tool) {
       return undefined;
     }
 
+    const inputStr = this.inputBuffers.get(itemId) ?? "";
     try {
-      tool.input = JSON.parse(inputStr) as JsonValue;
+      tool.input =
+        inputStr.length > 0 ? (JSON.parse(inputStr) as JsonValue) : {};
     } catch {
-      logger.warn("[ToolBuffer] Failed to parse tool input JSON, skipping tool call", {
-        inputLength: inputStr.length,
-        toolId: tool.id,
-        toolName: tool.name,
-      });
-      this.tools.delete(index);
-      this.inputBuffers.delete(index);
+      logger.warn(
+        "[ToolBuffer] Failed to parse tool input JSON, skipping tool call",
+        {
+          inputLength: inputStr.length,
+          itemId,
+          toolCallId: tool.callId,
+          toolName: tool.name,
+        },
+      );
+      this.tools.delete(itemId);
+      this.inputBuffers.delete(itemId);
       return undefined;
     }
 
-    this.tools.delete(index);
-    this.inputBuffers.delete(index);
-
+    this.tools.delete(itemId);
+    this.inputBuffers.delete(itemId);
     return tool;
   }
 
-  isEmitted(index: number): boolean {
-    return this.emittedIndices.has(index);
+  isEmitted(itemId: string): boolean {
+    return this.emittedItemIds.has(itemId);
   }
 
-  markEmitted(index: number): void {
-    this.emittedIndices.add(index);
+  markEmitted(itemId: string): void {
+    this.emittedItemIds.add(itemId);
   }
 
-  startTool(index: number, id: string, name: string): void {
-    this.tools.set(index, { id, input: {}, name });
-    this.inputBuffers.set(index, "");
+  pendingItemIds(): string[] {
+    return [...this.tools.keys()];
+  }
+
+  startTool(itemId: string, callId: string, name: string): void {
+    this.tools.set(itemId, { callId, input: {}, itemId, name });
+    if (!this.inputBuffers.has(itemId)) {
+      this.inputBuffers.set(itemId, "");
+    }
   }
 }

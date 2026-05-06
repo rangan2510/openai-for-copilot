@@ -1,144 +1,150 @@
 import type {
-  ChatCompletionContentPart,
-  ChatCompletionMessageParam,
-} from "openai/resources/chat/completions";
+  ResponseInputItem,
+  ResponseInputMessageContentList,
+} from "openai/resources/responses/responses";
 import * as vscode from "vscode";
 
 import { logger } from "../logger";
 
-interface ConvertedMessages {
-  messages: ChatCompletionMessageParam[];
+/**
+ * Result of converting VS Code messages into Responses API input items.
+ */
+export interface ConvertedResponsesInput {
+  /** The full input[] array to send to /v1/responses. */
+  input: ResponseInputItem[];
+  /** Concatenated system/developer text; sent as the top-level `instructions` field. */
+  instructions?: string;
 }
 
 /**
- * Convert VSCode language model messages to OpenAI Chat Completions API format.
+ * Convert VS Code chat messages into the Responses API `input[]` plus a
+ * top-level `instructions` string.
  *
- * VSCode roles: User, Assistant, (System via LanguageModelChatMessageRole)
- * OpenAI roles: system, developer, user, assistant, tool
- *
- * Content parts mapping:
- * - LanguageModelTextPart -> { type: "text", text }
- * - LanguageModelToolCallPart -> assistant message with tool_calls
- * - LanguageModelToolResultPart -> { role: "tool", tool_call_id, content }
+ * Mapping:
+ * - System messages -> merged into `instructions` (Responses API first-class).
+ * - User text -> { type: "message", role: "user", content: [{ type: "input_text", ... }] }.
+ * - Image data parts -> { type: "input_image", image_url: dataUri, detail: "auto" }.
+ * - Assistant text -> { type: "message", role: "assistant",
+ *     content: [{ type: "output_text", text }] }.
+ *     Responses requires `output_text` content on assistant replay.
+ * - Assistant tool call -> { type: "function_call", call_id, name, arguments }.
+ * - Tool result (carried on a User message from VS Code) ->
+ *     { type: "function_call_output", call_id, output }.
  */
 export function convertMessages(
   messages: readonly vscode.LanguageModelChatMessage[],
-): ConvertedMessages {
-  const openaiMessages: ChatCompletionMessageParam[] = [];
+): ConvertedResponsesInput {
+  const input: ResponseInputItem[] = [];
+  const systemTexts: string[] = [];
 
   for (const msg of messages) {
     if (msg.role === vscode.LanguageModelChatMessageRole.User) {
-      const converted = processUserMessage(msg);
-      if (converted) openaiMessages.push(...converted);
+      input.push(...processUserMessage(msg));
     } else if (msg.role === vscode.LanguageModelChatMessageRole.Assistant) {
-      const converted = processAssistantMessage(msg);
-      if (converted) openaiMessages.push(converted);
+      const parts = processAssistantMessage(msg);
+      if (parts.length > 0) {
+        input.push(...parts);
+      }
     } else {
-      // System messages
+      // Unknown roles (legacy system proposals etc.) get folded into
+      // top-level instructions, which Responses sends as a developer/system
+      // message before the input items.
       const text = extractTextContent(msg);
       if (text) {
-        openaiMessages.push({ role: "system", content: text });
+        systemTexts.push(text);
       }
     }
   }
 
-  logger.trace("[Message Converter] Converted messages:", {
-    count: openaiMessages.length,
+  const instructions = systemTexts.join("\n\n").trim() || undefined;
+
+  logger.trace("[Responses Input] Converted messages", {
+    hasInstructions: Boolean(instructions),
+    itemCount: input.length,
   });
 
-  return { messages: openaiMessages };
+  return { input, instructions };
 }
 
-/**
- * Process a user message. May produce multiple OpenAI messages if it contains
- * tool results interleaved with text.
- */
-function processUserMessage(msg: vscode.LanguageModelChatMessage): ChatCompletionMessageParam[] {
-  const result: ChatCompletionMessageParam[] = [];
-  const contentParts: ChatCompletionContentPart[] = [];
-  const toolResults: ChatCompletionMessageParam[] = [];
+function processUserMessage(
+  msg: vscode.LanguageModelChatMessage,
+): ResponseInputItem[] {
+  const items: ResponseInputItem[] = [];
+  const textAndImageContent: ResponseInputMessageContentList = [];
+  const toolOutputs: ResponseInputItem[] = [];
 
   for (const part of msg.content) {
     if (part instanceof vscode.LanguageModelTextPart) {
-      contentParts.push({ type: "text", text: part.value });
+      textAndImageContent.push({ type: "input_text", text: part.value });
     } else if (part instanceof vscode.LanguageModelToolResultPart) {
-      // Tool results become separate "tool" role messages in OpenAI format
-      const toolContent =
+      const output =
         typeof part.content === "string"
           ? part.content
           : JSON.stringify(part.content);
-      toolResults.push({
-        role: "tool" as const,
-        tool_call_id: part.callId,
-        content: toolContent,
+      toolOutputs.push({
+        type: "function_call_output",
+        call_id: part.callId,
+        output,
       });
     } else if (isImagePart(part)) {
-      // Handle image parts
       const imageUrl = extractImageUrl(part);
       if (imageUrl) {
-        contentParts.push({
-          type: "image_url",
-          image_url: { url: imageUrl },
+        textAndImageContent.push({
+          type: "input_image",
+          image_url: imageUrl,
+          detail: "auto",
         });
       }
     }
   }
 
-  // Emit tool results first (they must follow the assistant tool_calls message)
-  if (toolResults.length > 0) {
-    result.push(...toolResults);
+  // Tool outputs must appear before any user text response to them.
+  if (toolOutputs.length > 0) {
+    items.push(...toolOutputs);
   }
 
-  // Then emit user text/image content if any
-  if (contentParts.length > 0) {
-    result.push({ role: "user", content: contentParts });
+  if (textAndImageContent.length > 0) {
+    items.push({
+      type: "message",
+      role: "user",
+      content: textAndImageContent,
+    });
   }
 
-  return result;
+  return items;
 }
 
-/**
- * Process an assistant message. Extracts text and tool calls.
- */
 function processAssistantMessage(
   msg: vscode.LanguageModelChatMessage,
-): ChatCompletionMessageParam | undefined {
+): ResponseInputItem[] {
+  const items: ResponseInputItem[] = [];
   let textContent = "";
-  const toolCalls: Array<{
-    id: string;
-    type: "function";
-    function: { name: string; arguments: string };
-  }> = [];
 
   for (const part of msg.content) {
     if (part instanceof vscode.LanguageModelTextPart) {
       textContent += part.value;
     } else if (part instanceof vscode.LanguageModelToolCallPart) {
-      toolCalls.push({
-        id: part.callId,
-        type: "function",
-        function: {
-          name: part.name,
-          arguments:
-            typeof part.input === "string" ? part.input : JSON.stringify(part.input),
-        },
+      items.push({
+        type: "function_call",
+        call_id: part.callId,
+        name: part.name,
+        arguments:
+          typeof part.input === "string"
+            ? part.input
+            : JSON.stringify(part.input),
       });
     }
   }
 
-  if (toolCalls.length > 0) {
-    return {
+  if (textContent.length > 0) {
+    items.push({
       role: "assistant",
-      content: textContent || null,
-      tool_calls: toolCalls,
-    };
+      content: textContent,
+      type: "message",
+    });
   }
 
-  if (textContent) {
-    return { role: "assistant", content: textContent };
-  }
-
-  return undefined;
+  return items;
 }
 
 function extractTextContent(msg: vscode.LanguageModelChatMessage): string {
@@ -152,7 +158,6 @@ function extractTextContent(msg: vscode.LanguageModelChatMessage): string {
 }
 
 function isImagePart(part: unknown): boolean {
-  // Check for LanguageModelDataPart with image MIME type
   return (
     part !== null &&
     typeof part === "object" &&

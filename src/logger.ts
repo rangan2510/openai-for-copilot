@@ -16,7 +16,10 @@ class Logger {
     this.outputChannel?.info(message, ...args);
   }
 
-  initialize(outputChannel: vscode.LogOutputChannel, extensionMode: vscode.ExtensionMode) {
+  initialize(
+    outputChannel: vscode.LogOutputChannel,
+    extensionMode: vscode.ExtensionMode,
+  ) {
     this.outputChannel = outputChannel;
     this.extensionMode = extensionMode;
   }

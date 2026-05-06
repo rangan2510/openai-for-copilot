@@ -4,7 +4,6 @@ import { logger } from "../logger";
 
 /**
  * Interactive settings management for the OpenAI for Copilot extension.
- * Much simpler than the Bedrock version: just API key, base URL, and organization.
  */
 export async function manageSettings(
   secrets: vscode.SecretStorage,
@@ -20,7 +19,9 @@ export async function manageSettings(
         value: "api-key" as const,
       },
       {
-        description: `Current: ${config.get<string>("baseUrl") ?? "default (api.openai.com)"}`,
+        description: `Current: ${
+          config.get<string>("baseUrl") ?? "default (api.openai.com)"
+        }`,
         label: "Set Base URL",
         value: "base-url" as const,
       },
@@ -30,9 +31,25 @@ export async function manageSettings(
         value: "organization" as const,
       },
       {
-        description: `Current: ${config.get<string>("reasoningEffort") ?? "model-default"}`,
+        description: `Current: ${
+          config.get<string>("reasoningEffort") ?? "model-default"
+        }`,
         label: "Set Reasoning Effort",
         value: "reasoning-effort" as const,
+      },
+      {
+        description: `Current: ${
+          (config.get<boolean>("showReasoning") ?? true) ? "on" : "off"
+        }`,
+        label: "Toggle Show Reasoning",
+        value: "toggle-show-reasoning" as const,
+      },
+      {
+        description: `Current: ${
+          (config.get<boolean>("storeConversations") ?? true) ? "on" : "off"
+        }`,
+        label: "Toggle Store Conversations",
+        value: "toggle-store" as const,
       },
       { label: "Clear Settings", value: "clear" as const },
     ],
@@ -63,6 +80,14 @@ export async function manageSettings(
     }
     case "reasoning-effort": {
       await handleSetReasoningEffort();
+      break;
+    }
+    case "toggle-show-reasoning": {
+      await handleToggle("showReasoning", "Show reasoning");
+      break;
+    }
+    case "toggle-store": {
+      await handleToggle("storeConversations", "Store conversations");
       break;
     }
   }
@@ -140,30 +165,12 @@ async function handleSetReasoningEffort(): Promise<void> {
 
   const effort = await vscode.window.showQuickPick(
     [
-      {
-        description: "Use each model's API default",
-        label: "model-default",
-      },
-      {
-        description: "No reasoning where supported by the model",
-        label: "none",
-      },
-      {
-        description: "Minimal reasoning for GPT-5",
-        label: "minimal",
-      },
-      {
-        description: "Low reasoning effort",
-        label: "low",
-      },
-      {
-        description: "Medium reasoning effort",
-        label: "medium",
-      },
-      {
-        description: "High reasoning effort",
-        label: "high",
-      },
+      { description: "Use each model's API default", label: "model-default" },
+      { description: "No reasoning where supported", label: "none" },
+      { description: "Minimal reasoning for GPT-5", label: "minimal" },
+      { description: "Low reasoning effort", label: "low" },
+      { description: "Medium reasoning effort", label: "medium" },
+      { description: "High reasoning effort", label: "high" },
       {
         description: "Extra-high reasoning for GPT-5.2+ where supported",
         label: "xhigh",
@@ -185,6 +192,19 @@ async function handleSetReasoningEffort(): Promise<void> {
       `Reasoning effort set to ${effort.label}.`,
     );
   }
+}
+
+async function handleToggle(
+  configKey: "showReasoning" | "storeConversations",
+  displayName: string,
+): Promise<void> {
+  const config = vscode.workspace.getConfiguration("openai-for-copilot");
+  const current = config.get<boolean>(configKey) ?? true;
+  const next = !current;
+  await config.update(configKey, next, vscode.ConfigurationTarget.Global);
+  vscode.window.showInformationMessage(
+    `${displayName} is now ${next ? "on" : "off"}.`,
+  );
 }
 
 async function handleClearSettings(
@@ -216,6 +236,16 @@ async function handleClearSettings(
     );
     await config.update(
       "reasoningEffort",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    await config.update(
+      "showReasoning",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    await config.update(
+      "storeConversations",
       undefined,
       vscode.ConfigurationTarget.Global,
     );
