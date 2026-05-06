@@ -15,11 +15,16 @@ import { OpenAIAPIClient } from "./openai-client";
 import { getModelProfile, getModelTokenLimits } from "./profiles";
 import { getOpenAISettings } from "./settings";
 import { StreamProcessor } from "./stream-processor";
+import type { ApiReasoningEffort } from "./settings";
 import { validateMessages } from "./validation";
 
-export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModelChatProvider {
-  private readonly _onDidChangeLanguageModelInformation = new vscode.EventEmitter<void>();
-  readonly onDidChangeLanguageModelInformation = this._onDidChangeLanguageModelInformation.event;
+export class OpenAIChatModelProvider
+  implements vscode.Disposable, LanguageModelChatProvider
+{
+  private readonly _onDidChangeLanguageModelInformation =
+    new vscode.EventEmitter<void>();
+  readonly onDidChangeLanguageModelInformation =
+    this._onDidChangeLanguageModelInformation.event;
 
   private client: OpenAIAPIClient | undefined;
   private initialFetchComplete = false;
@@ -70,7 +75,11 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
     }
 
     const settings = getOpenAISettings();
-    this.client = new OpenAIAPIClient(apiKey, settings.baseUrl, settings.organization);
+    this.client = new OpenAIAPIClient(
+      apiKey,
+      settings.baseUrl,
+      settings.organization,
+    );
 
     try {
       const abortController = new AbortController();
@@ -156,12 +165,16 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
   async provideLanguageModelChatResponse(
     model: LanguageModelChatInformation,
     messages: readonly LanguageModelChatMessage[],
-    options: Parameters<LanguageModelChatProvider["provideLanguageModelChatResponse"]>[2],
+    options: Parameters<
+      LanguageModelChatProvider["provideLanguageModelChatResponse"]
+    >[2],
     progress: Progress<LanguageModelResponsePart>,
     token: CancellationToken,
   ): Promise<void> {
     if (!this.client) {
-      throw new Error("OpenAI client not initialized. Please configure your API key.");
+      throw new Error(
+        "OpenAI client not initialized. Please configure your API key.",
+      );
     }
 
     try {
@@ -176,9 +189,10 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
       const toolConfig = convertTools(options);
 
       // Build request parameters
-      const maxTokens = typeof options.modelOptions?.max_tokens === "number"
-        ? options.modelOptions.max_tokens
-        : model.maxOutputTokens;
+      const maxTokens =
+        typeof options.modelOptions?.max_tokens === "number"
+          ? options.modelOptions.max_tokens
+          : model.maxOutputTokens;
 
       const requestParams: Record<string, unknown> = {
         model: model.id,
@@ -198,9 +212,16 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
             : 0.7;
       }
 
-      // Add reasoning_effort for o-series models
+      // Add reasoning_effort for GPT-5+ and o-series models when explicitly configured.
       if (modelProfile.supportsReasoningEffort) {
-        requestParams.reasoning_effort = settings.reasoningEffort;
+        const reasoningEffort = resolveReasoningEffort(
+          settings.reasoningEffort,
+          modelProfile.supportedReasoningEfforts,
+        );
+
+        if (reasoningEffort) {
+          requestParams.reasoning_effort = reasoningEffort;
+        }
       }
 
       // Add tools
@@ -233,7 +254,9 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
 
       try {
         const stream = await this.client.startChatStream(
-          requestParams as unknown as Parameters<OpenAIAPIClient["startChatStream"]>[0],
+          requestParams as unknown as Parameters<
+            OpenAIAPIClient["startChatStream"]
+          >[0],
           abortController.signal,
         );
 
@@ -244,7 +267,10 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
       }
     } catch (error) {
       logger.error("[OpenAI Provider] Chat request failed", {
-        error: error instanceof Error ? { message: error.message, name: error.name } : String(error),
+        error:
+          error instanceof Error
+            ? { message: error.message, name: error.name }
+            : String(error),
         modelId: model.id,
       });
       throw error;
@@ -271,6 +297,24 @@ export class OpenAIChatModelProvider implements vscode.Disposable, LanguageModel
     }
     return Math.ceil(totalChars / 4);
   }
+}
+
+function resolveReasoningEffort(
+  configuredEffort: string,
+  supportedEfforts: readonly ApiReasoningEffort[],
+): ApiReasoningEffort | undefined {
+  if (configuredEffort === "model-default" || supportedEfforts.length === 0) {
+    return undefined;
+  }
+
+  if (supportedEfforts.includes(configuredEffort as ApiReasoningEffort)) {
+    return configuredEffort as ApiReasoningEffort;
+  }
+
+  logger.warn(
+    `[OpenAI Provider] Reasoning effort "${configuredEffort}" is not supported by this model; using model default`,
+  );
+  return undefined;
 }
 
 function formatTokenLimit(value: number): string {

@@ -38,14 +38,14 @@ Derived from the architecture of [amazon-bedrock-copilot-chat](https://github.co
 
 ## Extension Identity
 
-| Identifier type | Value | Location |
-|---|---|---|
-| Extension name | `openai-for-copilot` | `package.json` `name` |
-| Publisher | `rangan2510` | `package.json` `publisher` |
-| Vendor | `openai-for-copilot` | `package.json` `contributes.languageModelChatProviders[0].vendor` |
-| Display name | `OpenAI for Copilot` | `package.json` `contributes.languageModelChatProviders[0].displayName` |
-| Management command | `openai-for-copilot.manage` | `package.json` `contributes` + `extension.ts` |
-| Config namespace | `openai-for-copilot.*` | `package.json` `contributes.configuration.properties` + `settings.ts` |
+| Identifier type    | Value                       | Location                                                               |
+| ------------------ | --------------------------- | ---------------------------------------------------------------------- |
+| Extension name     | `openai-for-copilot`        | `package.json` `name`                                                  |
+| Publisher          | `rangan2510`                | `package.json` `publisher`                                             |
+| Vendor             | `openai-for-copilot`        | `package.json` `contributes.languageModelChatProviders[0].vendor`      |
+| Display name       | `OpenAI for Copilot`        | `package.json` `contributes.languageModelChatProviders[0].displayName` |
+| Management command | `openai-for-copilot.manage` | `package.json` `contributes` + `extension.ts`                          |
+| Config namespace   | `openai-for-copilot.*`      | `package.json` `contributes.configuration.properties` + `settings.ts`  |
 
 ## Key Differences from Bedrock Version
 
@@ -53,7 +53,7 @@ Derived from the architecture of [amazon-bedrock-copilot-chat](https://github.co
 - **SDK**: Single `openai` npm package. No AWS SDK.
 - **API**: OpenAI Chat Completions API with SSE streaming. No Bedrock Converse API.
 - **Models**: Discovered via `client.models.list()`. No inference profiles.
-- **Thinking**: Not applicable. Reasoning models (o-series) use `reasoning_effort` parameter.
+- **Thinking**: GPT-5.x and o-series models use `reasoning_effort`; unsupported effort values are ignored per model.
 - **Prompt caching**: Handled server-side by OpenAI. No client-side cache points.
 - **Token counting**: Estimation via char/4 heuristic. No dedicated API endpoint.
 

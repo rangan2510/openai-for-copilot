@@ -6,7 +6,9 @@ import { logger } from "../logger";
  * Interactive settings management for the OpenAI for Copilot extension.
  * Much simpler than the Bedrock version: just API key, base URL, and organization.
  */
-export async function manageSettings(secrets: vscode.SecretStorage): Promise<void> {
+export async function manageSettings(
+  secrets: vscode.SecretStorage,
+): Promise<void> {
   const currentApiKey = await secrets.get("openai-for-copilot.apiKey");
   const config = vscode.workspace.getConfiguration("openai-for-copilot");
 
@@ -26,6 +28,11 @@ export async function manageSettings(secrets: vscode.SecretStorage): Promise<voi
         description: `Current: ${config.get<string>("organization") ?? "none"}`,
         label: "Set Organization",
         value: "organization" as const,
+      },
+      {
+        description: `Current: ${config.get<string>("reasoningEffort") ?? "model-default"}`,
+        label: "Set Reasoning Effort",
+        value: "reasoning-effort" as const,
       },
       { label: "Clear Settings", value: "clear" as const },
     ],
@@ -52,6 +59,10 @@ export async function manageSettings(secrets: vscode.SecretStorage): Promise<voi
     }
     case "organization": {
       await handleSetOrganization();
+      break;
+    }
+    case "reasoning-effort": {
+      await handleSetReasoningEffort();
       break;
     }
   }
@@ -111,14 +122,74 @@ async function handleSetOrganization(): Promise<void> {
 
   if (org !== undefined) {
     const value = org.trim() || null;
-    await config.update("organization", value, vscode.ConfigurationTarget.Global);
+    await config.update(
+      "organization",
+      value,
+      vscode.ConfigurationTarget.Global,
+    );
     vscode.window.showInformationMessage(
       value ? `Organization set to ${value}` : "Organization cleared.",
     );
   }
 }
 
-async function handleClearSettings(secrets: vscode.SecretStorage): Promise<void> {
+async function handleSetReasoningEffort(): Promise<void> {
+  const config = vscode.workspace.getConfiguration("openai-for-copilot");
+  const currentEffort =
+    config.get<string>("reasoningEffort") ?? "model-default";
+
+  const effort = await vscode.window.showQuickPick(
+    [
+      {
+        description: "Use each model's API default",
+        label: "model-default",
+      },
+      {
+        description: "No reasoning where supported by the model",
+        label: "none",
+      },
+      {
+        description: "Minimal reasoning for GPT-5",
+        label: "minimal",
+      },
+      {
+        description: "Low reasoning effort",
+        label: "low",
+      },
+      {
+        description: "Medium reasoning effort",
+        label: "medium",
+      },
+      {
+        description: "High reasoning effort",
+        label: "high",
+      },
+      {
+        description: "Extra-high reasoning for GPT-5.2+ where supported",
+        label: "xhigh",
+      },
+    ],
+    {
+      placeHolder: `Current: ${currentEffort}`,
+      title: "Set Reasoning Effort",
+    },
+  );
+
+  if (effort) {
+    await config.update(
+      "reasoningEffort",
+      effort.label,
+      vscode.ConfigurationTarget.Global,
+    );
+    vscode.window.showInformationMessage(
+      `Reasoning effort set to ${effort.label}.`,
+    );
+  }
+}
+
+async function handleClearSettings(
+  secrets: vscode.SecretStorage,
+): Promise<void> {
   const confirm = await vscode.window.showWarningMessage(
     "This will clear your API key and all settings. Continue?",
     { modal: true },
@@ -128,10 +199,29 @@ async function handleClearSettings(secrets: vscode.SecretStorage): Promise<void>
   if (confirm === "Clear All") {
     await secrets.delete("openai-for-copilot.apiKey");
     const config = vscode.workspace.getConfiguration("openai-for-copilot");
-    await config.update("baseUrl", undefined, vscode.ConfigurationTarget.Global);
-    await config.update("organization", undefined, vscode.ConfigurationTarget.Global);
-    await config.update("preferredModel", undefined, vscode.ConfigurationTarget.Global);
-    vscode.window.showInformationMessage("All OpenAI for Copilot settings cleared.");
+    await config.update(
+      "baseUrl",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    await config.update(
+      "organization",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    await config.update(
+      "preferredModel",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    await config.update(
+      "reasoningEffort",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    vscode.window.showInformationMessage(
+      "All OpenAI for Copilot settings cleared.",
+    );
     logger.info("[Settings] All settings cleared");
   }
 }

@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/rangan2510/openai-for-copilot/issues"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "vscode": "^1.116.0"
   },
@@ -81,18 +81,26 @@
         },
         "openai-for-copilot.reasoningEffort": {
           "type": "string",
-          "default": "medium",
+          "default": "model-default",
           "enum": [
-            "high",
+            "model-default",
+            "none",
+            "minimal",
+            "low",
             "medium",
-            "low"
+            "high",
+            "xhigh"
           ],
           "enumDescriptions": [
-            "Maximum reasoning depth. Best for complex tasks.",
+            "Use the model's API default reasoning effort.",
+            "No reasoning where supported by the model.",
+            "Minimal reasoning, supported by GPT-5.",
+            "Low reasoning effort.",
             "Balanced reasoning and speed.",
-            "Fastest responses with minimal reasoning."
+            "High reasoning depth for complex tasks.",
+            "Extra-high reasoning depth, supported by GPT-5.2 and later."
           ],
-          "description": "Reasoning effort for o-series models (o3, o4-mini). Controls how much reasoning the model does before responding.",
+          "description": "Reasoning effort for GPT-5.x and o-series models. Unsupported values are ignored per model.",
           "scope": "resource"
         }
       }

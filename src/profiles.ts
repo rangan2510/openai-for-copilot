@@ -3,14 +3,18 @@
  *
  * OpenAI's API is more uniform than Bedrock's, so profiles are simpler.
  * The main distinctions are:
- * - Reasoning models (o-series) support reasoning_effort but not temperature
+ * - Reasoning models (GPT-5+ and o-series) support reasoning_effort but not temperature
  * - Vision support varies by model
  * - Token limits differ per model
  */
 
+import type { ApiReasoningEffort } from "./settings";
+
 export interface ModelProfile {
-  /** Whether the model supports reasoning_effort parameter (o-series models) */
+  /** Whether the model supports reasoning_effort parameter */
   supportsReasoningEffort: boolean;
+  /** Supported reasoning_effort values for this model family */
+  supportedReasoningEfforts: readonly ApiReasoningEffort[];
   /** Whether the model supports tool calling */
   supportsToolCalling: boolean;
   /** Whether the model supports vision (image inputs) */
@@ -47,61 +51,95 @@ const MODEL_TOKEN_LIMITS: Record<string, ModelTokenLimits> = {
   "gpt-4.1": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
 
   // GPT-5 family
-  "gpt-5-pro": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
-  "gpt-5-mini": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
-  "gpt-5-nano": { maxInputTokens: 1_047_576, maxOutputTokens: 16_384 },
-  "gpt-5": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
+  "gpt-5-pro": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
+  "gpt-5-mini": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
+  "gpt-5-nano": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
+  "gpt-5": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
 
   // GPT-5.1
-  "gpt-5.1": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
+  "gpt-5.1": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
 
   // GPT-5.2
-  "gpt-5.2-pro": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
-  "gpt-5.2": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
+  "gpt-5.2-pro": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
+  "gpt-5.2": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
 
   // GPT-5.3
   "gpt-5.3": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
 
   // GPT-5.4
-  "gpt-5.4-pro": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
-  "gpt-5.4-mini": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
-  "gpt-5.4-nano": { maxInputTokens: 1_047_576, maxOutputTokens: 16_384 },
-  "gpt-5.4": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
+  "gpt-5.4-pro": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.4-mini": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.4-nano": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.4": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
 
   // GPT-5.5
-  "gpt-5.5-pro": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
-  "gpt-5.5-mini": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
-  "gpt-5.5-nano": { maxInputTokens: 1_047_576, maxOutputTokens: 16_384 },
-  "gpt-5.5": { maxInputTokens: 1_047_576, maxOutputTokens: 65_536 },
+  "gpt-5.5-pro": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.5-mini": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.5-nano": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.5": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
 
   // o1-series reasoning models
   "o1-pro": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
-  "o1": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
+  o1: { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
 
   // o3-series reasoning models
   "o3-pro": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
   "o3-mini": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
-  "o3": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
+  o3: { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
 
   // o4-series reasoning models
   "o4-mini": { maxInputTokens: 200_000, maxOutputTokens: 100_000 },
 };
 
 export function getModelProfile(modelId: string): ModelProfile {
+  const isGpt5Model = modelId.startsWith("gpt-5");
   const isReasoningModel =
-    modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4");
+    isGpt5Model ||
+    modelId.startsWith("o1") ||
+    modelId.startsWith("o3") ||
+    modelId.startsWith("o4");
 
   // GPT-5+ and o-series require max_completion_tokens; GPT-4 family uses max_tokens
-  const isNewModel =
-    isReasoningModel || modelId.startsWith("gpt-5");
+  const isNewModel = isReasoningModel;
 
   return {
     supportsReasoningEffort: isReasoningModel,
+    supportedReasoningEfforts: getSupportedReasoningEfforts(modelId),
     supportsTemperature: !isNewModel,
     supportsToolCalling: true,
-    supportsVision: !isReasoningModel,
+    supportsVision: !modelId.startsWith("o"),
     useMaxCompletionTokens: isNewModel,
   };
+}
+
+function getSupportedReasoningEfforts(
+  modelId: string,
+): readonly ApiReasoningEffort[] {
+  if (
+    modelId.startsWith("gpt-5.2") ||
+    modelId.startsWith("gpt-5.4") ||
+    modelId.startsWith("gpt-5.5")
+  ) {
+    return ["none", "low", "medium", "high", "xhigh"];
+  }
+
+  if (modelId.startsWith("gpt-5.1")) {
+    return ["none", "low", "medium", "high"];
+  }
+
+  if (modelId.startsWith("gpt-5")) {
+    return ["minimal", "low", "medium", "high"];
+  }
+
+  if (
+    modelId.startsWith("o1") ||
+    modelId.startsWith("o3") ||
+    modelId.startsWith("o4")
+  ) {
+    return ["low", "medium", "high"];
+  }
+
+  return [];
 }
 
 export function getModelTokenLimits(modelId: string): ModelTokenLimits {

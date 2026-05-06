@@ -72,8 +72,9 @@ bun run test             # Run tests
 
 ### Model Capabilities (src/profiles.ts)
 
-- **Reasoning models** (o3, o4-mini): Support `reasoning_effort`, no `temperature`
-- **GPT models**: Support temperature, vision, tool calling
+- **Reasoning models** (GPT-5.x, o3, o4-mini): Support `reasoning_effort`, no `temperature`
+- **GPT-4 models**: Support temperature, vision, tool calling
+- **GPT-5 models**: Support reasoning effort, vision, tool calling; do not use temperature
 - Token limits are hardcoded per known model family with conservative defaults for unknown models
 
 ## Configuration Files
