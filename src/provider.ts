@@ -23,6 +23,19 @@ import { getOpenAISettings } from "./settings";
 import { StreamProcessor } from "./stream-processor";
 import { validateInput } from "./validation";
 
+/**
+ * Extended model information type that includes proposed API properties
+ * for the VS Code model picker (agentMode and isUserSelectable).
+ * These fields control whether models appear in Copilot Chat's agent mode
+ * and the model selector dropdown.
+ */
+type PickerLanguageModelChatInformation = LanguageModelChatInformation & {
+  readonly capabilities: LanguageModelChatInformation["capabilities"] & {
+    readonly agentMode: boolean;
+  };
+  readonly isUserSelectable: boolean;
+};
+
 export class OpenAIChatModelProvider
   implements vscode.Disposable, LanguageModelChatProvider
 {
@@ -105,17 +118,19 @@ export class OpenAIChatModelProvider
 
           progress?.report({ message: "Building model list..." });
 
-          const infos: LanguageModelChatInformation[] = models.map((model) => {
+          const infos: PickerLanguageModelChatInformation[] = models.map((model) => {
             const limits = getModelTokenLimits(model.id);
             const profile = getModelProfile(model.id);
 
             return {
               capabilities: {
+                agentMode: true,
                 imageInput: profile.supportsVision,
                 toolCalling: profile.supportsToolCalling,
               },
               family: "openai-for-copilot",
               id: model.id,
+              isUserSelectable: true,
               maxInputTokens: limits.maxInputTokens,
               maxOutputTokens: limits.maxOutputTokens,
               name: model.name,

@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/rangan2510/openai-for-copilot/issues"
   },
-  "version": "0.2.0",
+  "version": "0.3.0",
   "engines": {
     "vscode": "^1.116.0"
   },
