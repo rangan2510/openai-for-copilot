@@ -15,6 +15,21 @@ export function activate(context: vscode.ExtensionContext) {
     "OpenAI for Copilot extension activated. For verbose debugging, set log level to Debug via the output channel dropdown menu.",
   );
 
+  // Proposed-API sanity check. registerLanguageModelChatProvider is a proposed
+  // (unstable) VS Code API; a VS Code update can rename or remove it without a
+  // deprecation cycle. Fail loudly with an actionable message instead of a
+  // cryptic "x is not a function" deep in activation.
+  if (typeof vscode.lm?.registerLanguageModelChatProvider !== "function") {
+    const msg =
+      "OpenAI for Copilot: this VS Code build does not expose " +
+      "vscode.lm.registerLanguageModelChatProvider (a proposed API this extension " +
+      `depends on). VS Code version: ${vscode.version}. The extension may need to be ` +
+      "rebuilt against a newer proposed API. Models will not appear in the picker.";
+    logger.error(msg);
+    void vscode.window.showErrorMessage(msg);
+    return;
+  }
+
   const provider = new OpenAIChatModelProvider(context.secrets);
 
   const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
@@ -36,6 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
       e.affectsConfiguration("openai-for-copilot.organization") ||
       e.affectsConfiguration("openai-for-copilot.preferredModel") ||
       e.affectsConfiguration("openai-for-copilot.reasoningEffort") ||
+      e.affectsConfiguration("openai-for-copilot.contextSafetyMargin") ||
       e.affectsConfiguration("openai-for-copilot.showReasoning") ||
       e.affectsConfiguration("openai-for-copilot.storeConversations")
     ) {

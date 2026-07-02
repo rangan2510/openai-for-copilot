@@ -118,30 +118,35 @@ export class OpenAIChatModelProvider
 
           progress?.report({ message: "Building model list..." });
 
-          const infos: PickerLanguageModelChatInformation[] = models.map((model) => {
-            const limits = getModelTokenLimits(model.id);
-            const profile = getModelProfile(model.id);
+          const infos: PickerLanguageModelChatInformation[] = models.map(
+            (model) => {
+              const limits = getModelTokenLimits(
+                model.id,
+                settings.contextSafetyMargin,
+              );
+              const profile = getModelProfile(model.id);
 
-            return {
-              capabilities: {
-                agentMode: true,
-                imageInput: profile.supportsVision,
-                toolCalling: profile.supportsToolCalling,
-              },
-              family: "openai-for-copilot",
-              id: model.id,
-              isUserSelectable: true,
-              maxInputTokens: limits.maxInputTokens,
-              maxOutputTokens: limits.maxOutputTokens,
-              name: model.name,
-              tooltip: [
-                `OpenAI - ${model.id}`,
-                `Input limit: ${formatTokenLimit(limits.maxInputTokens)} tokens`,
-                `Output limit: ${formatTokenLimit(limits.maxOutputTokens)} tokens`,
-              ].join("\n"),
-              version: "1.0.0",
-            };
-          });
+              return {
+                capabilities: {
+                  agentMode: true,
+                  imageInput: profile.supportsVision,
+                  toolCalling: profile.supportsToolCalling,
+                },
+                family: "openai-for-copilot",
+                id: model.id,
+                isUserSelectable: true,
+                maxInputTokens: limits.maxInputTokens,
+                maxOutputTokens: limits.maxOutputTokens,
+                name: model.name,
+                tooltip: [
+                  `OpenAI - ${model.id}`,
+                  `Input limit: ${formatTokenLimit(limits.maxInputTokens)} tokens`,
+                  `Output limit: ${formatTokenLimit(limits.maxOutputTokens)} tokens`,
+                ].join("\n"),
+                version: "1.0.0",
+              };
+            },
+          );
 
           if (infos.length === 0) {
             throw new Error("No Responses-capable OpenAI models found");

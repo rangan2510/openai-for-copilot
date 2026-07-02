@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/rangan2510/openai-for-copilot/issues"
   },
-  "version": "0.3.0",
+  "version": "0.4.0",
   "engines": {
     "vscode": "^1.116.0"
   },
@@ -113,6 +113,14 @@
           "type": "boolean",
           "default": true,
           "description": "Store conversations on OpenAI's servers (`store: true`) so subsequent turns can reuse `previous_response_id` and skip resending prior messages. Disable for stateless requests.",
+          "scope": "resource"
+        },
+        "openai-for-copilot.contextSafetyMargin": {
+          "type": "number",
+          "default": 32000,
+          "minimum": 0,
+          "maximum": 200000,
+          "description": "Tokens reserved on top of a model's output budget, subtracted from its advertised input window. Guards against context-overflow errors on large-context models (400K/1M GPT-5.x and GPT-4.1): the extension's token counting is an estimate and reasoning tokens also consume the window, so leaving headroom prevents input + output from hitting the hard ceiling. Increase if you still see context-overflow errors on very long conversations; decrease to use more of the window. Clamped to 0-200000.",
           "scope": "resource"
         }
       }

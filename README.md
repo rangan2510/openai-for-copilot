@@ -118,6 +118,7 @@ Optional: set a preferred model, custom base URL, or organization ID in the same
 | `openai-for-copilot.reasoningEffort`    | Reasoning depth for GPT-5.x and o-series models: `model-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
 | `openai-for-copilot.showReasoning`      | Stream model reasoning text inline before the final answer (default: on)                                              |
 | `openai-for-copilot.storeConversations` | Use OpenAI-stored conversations and `previous_response_id` for follow-up turns (default: on)                          |
+| `openai-for-copilot.contextSafetyMargin` | Tokens reserved on top of the output budget (default 32000, range 0-200000). Prevents context-overflow on large-window models; increase if overflow persists, decrease to use more of the window |
 
 ## How it works
 

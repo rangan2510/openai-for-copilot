@@ -31,8 +31,14 @@ export interface ModelTokenLimits {
  * Known OpenAI models with their token limits. Models not in this map get
  * conservative defaults via longest-prefix lookup. More-specific prefixes must
  * appear before shorter ones (e.g. "gpt-5.2-pro" before "gpt-5.2").
+ *
+ * NOTE: `maxInputTokens` here is the model's FULL context window. The public
+ * `getModelTokenLimits` subtracts `maxOutputTokens` (and any caller-supplied
+ * safety margin) from it so the value handed to VS Code leaves room for the
+ * response. Storing the raw window keeps these numbers easy to verify against
+ * OpenAI's published specs.
  */
-const MODEL_TOKEN_LIMITS: Record<string, ModelTokenLimits> = {
+const MODEL_CONTEXT_WINDOWS: Record<string, ModelTokenLimits> = {
   // GPT-4-turbo
   "gpt-4-turbo": { maxInputTokens: 128_000, maxOutputTokens: 4_096 },
 
@@ -133,15 +139,51 @@ function getSupportedReasoningEfforts(
   return [];
 }
 
-export function getModelTokenLimits(modelId: string): ModelTokenLimits {
-  if (MODEL_TOKEN_LIMITS[modelId]) {
-    return MODEL_TOKEN_LIMITS[modelId];
+/**
+ * Resolve the effective token limits for a model.
+ *
+ * The returned `maxInputTokens` is the model's context window minus its output
+ * budget minus `safetyMargin`, so `input + output` stays clear of the hard
+ * ceiling. VS Code 1.120+ enforces the reported limits when packing BYOK
+ * conversations, and this extension counts tokens with a char/4 estimate that
+ * can undercount, so the reservation prevents context-overflow errors on the
+ * large-window (400K/1M) GPT-5.x and GPT-4.1 models.
+ *
+ * @param modelId The OpenAI model id.
+ * @param safetyMargin Extra tokens reserved on top of the output budget.
+ *   Default 0. Floored so it never shrinks the window below a usable minimum.
+ */
+export function getModelTokenLimits(
+  modelId: string,
+  safetyMargin = 0,
+): ModelTokenLimits {
+  const window = resolveContextWindow(modelId);
+
+  const rawInput =
+    window.maxInputTokens - window.maxOutputTokens - safetyMargin;
+  // Never drop the input window below a usable floor (25% of the context
+  // window or 8K, whichever is larger) even if margin + output are huge.
+  const floor = Math.max(8_000, Math.floor(window.maxInputTokens * 0.25));
+
+  return {
+    maxInputTokens: Math.max(floor, rawInput),
+    maxOutputTokens: window.maxOutputTokens,
+  };
+}
+
+/**
+ * Look up a model's full context window (input side = window, before reserving
+ * output/margin). Falls back to longest-prefix match, then a conservative default.
+ */
+function resolveContextWindow(modelId: string): ModelTokenLimits {
+  if (MODEL_CONTEXT_WINDOWS[modelId]) {
+    return MODEL_CONTEXT_WINDOWS[modelId];
   }
 
   let bestMatch: ModelTokenLimits | undefined;
   let bestLength = 0;
 
-  for (const [knownId, limits] of Object.entries(MODEL_TOKEN_LIMITS)) {
+  for (const [knownId, limits] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
     if (modelId.startsWith(knownId) && knownId.length > bestLength) {
       bestMatch = limits;
       bestLength = knownId.length;
