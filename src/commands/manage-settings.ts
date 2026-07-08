@@ -2,6 +2,9 @@ import * as vscode from "vscode";
 
 import { logger } from "../logger";
 
+/** VS Code language model vendor id for this extension's provider. */
+const OPENAI_VENDOR = "openai-for-copilot";
+
 /**
  * Interactive settings management for the OpenAI for Copilot extension.
  */
@@ -10,6 +13,7 @@ export async function manageSettings(
 ): Promise<void> {
   const currentApiKey = await secrets.get("openai-for-copilot.apiKey");
   const config = vscode.workspace.getConfiguration("openai-for-copilot");
+  const chatConfig = vscode.workspace.getConfiguration("chat");
 
   const action = await vscode.window.showQuickPick(
     [
@@ -29,6 +33,16 @@ export async function manageSettings(
         description: `Current: ${config.get<string>("organization") ?? "none"}`,
         label: "Set Organization",
         value: "organization" as const,
+      },
+      {
+        description: `Current: ${chatConfig.get<string>("utilitySmallModel") ?? "Default"}`,
+        label: "Set Utility Model",
+        value: "utility-model" as const,
+      },
+      {
+        description: `Current: ${chatConfig.get<string>("byokUtilityModelDefault") ?? "none"}`,
+        label: "Set BYOK Utility Default",
+        value: "byok-utility-default" as const,
       },
       {
         description: `Current: ${
@@ -80,6 +94,14 @@ export async function manageSettings(
     }
     case "reasoning-effort": {
       await handleSetReasoningEffort();
+      break;
+    }
+    case "utility-model": {
+      await handleSetUtilityModel();
+      break;
+    }
+    case "byok-utility-default": {
+      await handleSetByokUtilityDefault();
       break;
     }
     case "toggle-show-reasoning": {
@@ -192,6 +214,102 @@ async function handleSetReasoningEffort(): Promise<void> {
       `Reasoning effort set to ${effort.label}.`,
     );
   }
+}
+
+/**
+ * Let the user pick a specific model to back VS Code's utility flows
+ * (chat.utilityModel / chat.utilitySmallModel). Selecting an explicit model
+ * also sets chat.byokUtilityModelDefault to "none" so the explicit choice wins.
+ */
+async function handleSetUtilityModel(): Promise<void> {
+  const chatConfig = vscode.workspace.getConfiguration("chat");
+  const currentSelector = chatConfig.get<string>("utilitySmallModel") ?? "Default";
+  const models = await vscode.lm.selectChatModels({ vendor: OPENAI_VENDOR });
+  const availableModels = models.toSorted((a, b) => a.name.localeCompare(b.name));
+
+  if (availableModels.length === 0) {
+    vscode.window.showWarningMessage(
+      "No available OpenAI models found for this provider. Configure API key and retry.",
+    );
+    return;
+  }
+
+  const selected = await vscode.window.showQuickPick(
+    availableModels.map((model) => ({
+      description: model.id,
+      label: model.name,
+      selectorLabel: formatUtilityModelSelector(model.name, OPENAI_VENDOR),
+      value: model.id,
+    })),
+    {
+      ignoreFocusOut: true,
+      placeHolder: `Current: ${currentSelector}`,
+      title: "Select Utility Model",
+    },
+  );
+
+  if (!selected) return;
+
+  await chatConfig.update("byokUtilityModelDefault", "none", vscode.ConfigurationTarget.Global);
+  await chatConfig.update(
+    "utilityModel",
+    selected.selectorLabel,
+    vscode.ConfigurationTarget.Global,
+  );
+  await chatConfig.update(
+    "utilitySmallModel",
+    selected.selectorLabel,
+    vscode.ConfigurationTarget.Global,
+  );
+  vscode.window.showInformationMessage(`Utility model set to ${selected.value}.`);
+}
+
+async function handleSetByokUtilityDefault(): Promise<void> {
+  const config = vscode.workspace.getConfiguration("chat");
+  const currentValue = config.get<string>("byokUtilityModelDefault") ?? "none";
+
+  const selected = await vscode.window.showQuickPick(
+    [
+      {
+        description: "Recommended when switching between BYOK providers. Reuses the currently selected main chat model.",
+        label: "Use Main Agent Model",
+        value: "mainAgent",
+      },
+      {
+        description: "Use GitHub Copilot utility models for background utility flows.",
+        label: "Use Copilot Utility Models",
+        value: "copilot",
+      },
+      {
+        description: "Require an explicit chat.utilityModel/chat.utilitySmallModel override.",
+        label: "No Default Utility Model",
+        value: "none",
+      },
+    ],
+    {
+      ignoreFocusOut: true,
+      placeHolder: `Current: ${currentValue}`,
+      title: "Select BYOK Utility Default",
+    },
+  );
+
+  if (!selected) return;
+
+  await config.update(
+    "byokUtilityModelDefault",
+    selected.value,
+    vscode.ConfigurationTarget.Global,
+  );
+  if (selected.value === "mainAgent" || selected.value === "copilot") {
+    await config.update("utilityModel", undefined, vscode.ConfigurationTarget.Global);
+    await config.update("utilitySmallModel", undefined, vscode.ConfigurationTarget.Global);
+  }
+
+  vscode.window.showInformationMessage(`BYOK utility default set to ${selected.value}.`);
+}
+
+function formatUtilityModelSelector(name: string, vendor: string): string {
+  return `${name} (${vendor})`;
 }
 
 async function handleToggle(
