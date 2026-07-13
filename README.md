@@ -11,6 +11,10 @@
   <img src="https://img.shields.io/badge/VS%20Code-%3E%3D1.116.0-blue" alt="VS Code version" />
 </p>
 
+### v0.7.0
+
+- Added a status bar activity indicator: shows `reading models`, `streaming · N tok` (live token estimate, snaps to the exact output-token count on completion), and account/stream errors. Auto-hides when idle, so only the provider currently working is visible. Toggle via `showStatusBar` (default on).
+
 ### v0.6.0
 
 - Added GPT-5.6 family (Sol, Terra, Luna): 1.05M context, 128K output, all with the new `max` reasoning effort. Bare `gpt-5.6` alias routes to Sol.
@@ -80,6 +84,7 @@ In short: if a model exists on your OpenAI account and supports chat completions
 - **Agent mode** -- works with VS Code's agent mode, inline edits, and ask mode
 - **Auto-discovery** -- queries `models.list()` on your OpenAI account and filters to Responses-capable chat models
 - **Custom base URL** -- point at Azure OpenAI, a corporate proxy, or any OpenAI-compatible endpoint
+- **Status bar activity** -- a status bar item shows `reading models` / `streaming · N tok` / errors and auto-hides when idle (toggle via `showStatusBar`)
 
 ## Available model families
 
@@ -125,6 +130,7 @@ Optional: set a preferred model, custom base URL, or organization ID in the same
 | `openai-for-copilot.showReasoning`      | Stream model reasoning text inline before the final answer (default: on)                                              |
 | `openai-for-copilot.storeConversations` | Use OpenAI-stored conversations and `previous_response_id` for follow-up turns (default: on)                          |
 | `openai-for-copilot.contextSafetyMargin` | Tokens reserved on top of the output budget (default 32000, range 0-200000). Prevents context-overflow on large-window models; increase if overflow persists, decrease to use more of the window |
+| `openai-for-copilot.showStatusBar` | Show a status bar activity indicator while reading models or streaming (auto-hides when idle). Default on |
 
 ## How it works
 

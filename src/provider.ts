@@ -20,6 +20,7 @@ import { OpenAIAPIClient } from "./openai-client";
 import { getModelProfile, getModelTokenLimits } from "./profiles";
 import type { ApiReasoningEffort } from "./settings";
 import { getOpenAISettings } from "./settings";
+import { statusBar } from "./status-bar";
 import { StreamProcessor } from "./stream-processor";
 import { validateInput } from "./validation";
 
@@ -113,6 +114,7 @@ export class OpenAIChatModelProvider
           progress?: vscode.Progress<{ message?: string }>,
         ): Promise<LanguageModelChatInformation[]> => {
           progress?.report({ message: "Fetching OpenAI models..." });
+          statusBar.startReadingModels();
 
           const models = await this.client!.fetchModels(abortController.signal);
 
@@ -155,6 +157,7 @@ export class OpenAIChatModelProvider
           infos.sort((a, b) => a.name.localeCompare(b.name));
 
           this.initialFetchComplete = true;
+          statusBar.finishReadingModels(infos.length);
           return infos;
         };
 
@@ -176,8 +179,15 @@ export class OpenAIChatModelProvider
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         logger.info("[OpenAI Provider] Model fetch cancelled by user");
+        statusBar.finishReadingModels();
         return [];
       }
+
+      statusBar.reportAccountError(
+        error instanceof Error
+          ? error.message
+          : "failed to read the model list",
+      );
 
       if (!options.silent) {
         logger.error("[OpenAI Provider] Failed to fetch models", error);
@@ -315,27 +325,41 @@ export class OpenAIChatModelProvider
           abortController.signal,
         );
 
-        const result = await this.streamProcessor.processStream(
-          stream,
-          progress,
-          token,
-          { showReasoning: settings.showReasoning },
-        );
-
-        if (
-          settings.storeConversations &&
-          sessionKey &&
-          result.responseId &&
-          !token.isCancellationRequested
-        ) {
-          this.conversationIndex.record(
-            sessionKey,
-            result.responseId,
-            messages.length,
+        statusBar.startRequest();
+        let streamFailed = false;
+        try {
+          const result = await this.streamProcessor.processStream(
+            stream,
+            progress,
+            token,
+            { showReasoning: settings.showReasoning },
           );
-        }
 
-        logger.info("[OpenAI Provider] Chat request completed");
+          if (
+            settings.storeConversations &&
+            sessionKey &&
+            result.responseId &&
+            !token.isCancellationRequested
+          ) {
+            this.conversationIndex.record(
+              sessionKey,
+              result.responseId,
+              messages.length,
+            );
+          }
+
+          logger.info("[OpenAI Provider] Chat request completed");
+        } catch (streamError) {
+          streamFailed = true;
+          statusBar.errorRequest(
+            streamError instanceof Error ? streamError.message : undefined,
+          );
+          throw streamError;
+        } finally {
+          if (!streamFailed) {
+            statusBar.finishRequest();
+          }
+        }
       } finally {
         cancellationListener.dispose();
       }

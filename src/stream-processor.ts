@@ -7,7 +7,13 @@ import type {
 } from "vscode";
 
 import { logger } from "./logger";
+import { statusBar } from "./status-bar";
 import { ToolBuffer } from "./tool-buffer";
+
+/** Rough token estimate from character count (matches the char/4 heuristic used elsewhere). */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
 
 export interface StreamResult {
   /** Final response id (from response.completed). Used for `previous_response_id`. */
@@ -73,6 +79,7 @@ export class StreamProcessor {
               answerStarted = true;
             }
             progress.report(new vscode.LanguageModelTextPart(event.delta));
+            statusBar.addTokens(estimateTokens(event.delta));
             emittedAnyContent = true;
             break;
           }
@@ -89,6 +96,7 @@ export class StreamProcessor {
               reasoningHeaderShown = true;
             }
             progress.report(new vscode.LanguageModelTextPart(event.delta));
+            statusBar.addTokens(estimateTokens(event.delta));
             emittedAnyContent = true;
             break;
           }
@@ -140,6 +148,10 @@ export class StreamProcessor {
           case "response.completed": {
             responseId = event.response.id ?? responseId;
             status = event.response.status ?? status;
+            const outputTokens = event.response.usage?.output_tokens;
+            if (typeof outputTokens === "number" && outputTokens > 0) {
+              statusBar.setExactOutputTokens(outputTokens);
+            }
             break;
           }
 

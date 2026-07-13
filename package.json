@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/rangan2510/openai-for-copilot/issues"
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "engines": {
     "vscode": "^1.116.0"
   },
@@ -124,6 +124,12 @@
           "maximum": 200000,
           "description": "Tokens reserved on top of a model's output budget, subtracted from its advertised input window. Guards against context-overflow errors on large-context models (400K/1M GPT-5.x and GPT-4.1): the extension's token counting is an estimate and reasoning tokens also consume the window, so leaving headroom prevents input + output from hitting the hard ceiling. Increase if you still see context-overflow errors on very long conversations; decrease to use more of the window. Clamped to 0-200000.",
           "scope": "resource"
+        },
+        "openai-for-copilot.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a status bar activity indicator while the extension is reading the model list or streaming a response (with a live token estimate). The indicator auto-hides when idle, so only the provider currently doing work is visible. Disable to hide it entirely.",
+          "scope": "window"
         }
       }
     }

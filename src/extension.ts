@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { manageSettings } from "./commands/manage-settings";
 import { logger } from "./logger";
 import { OpenAIChatModelProvider } from "./provider";
+import { statusBar } from "./status-bar";
 
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel(
@@ -32,6 +33,17 @@ export function activate(context: vscode.ExtensionContext) {
 
   const provider = new OpenAIChatModelProvider(context.secrets);
 
+  // Status bar activity indicator (auto-hides when idle). Clicking it opens the
+  // manage command for quick access to settings.
+  statusBar.initialize({
+    command: "openai-for-copilot.manage",
+    enabled:
+      vscode.workspace
+        .getConfiguration("openai-for-copilot")
+        .get<boolean>("showStatusBar") ?? true,
+    label: "OpenAI",
+  });
+
   const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
     "openai-for-copilot",
     provider,
@@ -46,6 +58,13 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Refresh provider when relevant settings change
   const cfgDisposable = vscode.workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration("openai-for-copilot.showStatusBar")) {
+      statusBar.setEnabled(
+        vscode.workspace
+          .getConfiguration("openai-for-copilot")
+          .get<boolean>("showStatusBar") ?? true,
+      );
+    }
     if (
       e.affectsConfiguration("openai-for-copilot.baseUrl") ||
       e.affectsConfiguration("openai-for-copilot.organization") ||
@@ -105,6 +124,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     outputChannel,
+    { dispose: () => statusBar.dispose() },
     provider,
     providerDisposable,
     manageCmdDisposable,
