@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/rangan2510/openai-for-copilot/issues"
   },
-  "version": "0.5.0",
+  "version": "0.6.0",
   "engines": {
     "vscode": "^1.116.0"
   },
@@ -89,7 +89,8 @@
             "low",
             "medium",
             "high",
-            "xhigh"
+            "xhigh",
+            "max"
           ],
           "enumDescriptions": [
             "Use the model's API default reasoning effort.",
@@ -98,7 +99,8 @@
             "Low reasoning effort.",
             "Balanced reasoning and speed.",
             "High reasoning depth for complex tasks.",
-            "Extra-high reasoning depth, supported by GPT-5.2 and later."
+            "Extra-high reasoning depth, supported by GPT-5.2 and later.",
+            "Maximum reasoning depth, supported by GPT-5.6 (Sol/Terra/Luna)."
           ],
           "description": "Reasoning effort for GPT-5.x and o-series models on the Responses API. Unsupported values are ignored per model.",
           "scope": "resource"

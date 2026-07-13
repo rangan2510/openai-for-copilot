@@ -51,6 +51,14 @@ const MODEL_CONTEXT_WINDOWS: Record<string, ModelTokenLimits> = {
   "gpt-4.1-nano": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
   "gpt-4.1": { maxInputTokens: 1_047_576, maxOutputTokens: 32_768 },
 
+  // GPT-5.6 family (Sol / Terra / Luna) -- all three: 1.05M context, 128K output.
+  // Bare "gpt-5.6" alias routes to Sol. Longest-prefix lookup handles the -sol/
+  // -terra/-luna suffixes and any dated snapshots.
+  "gpt-5.6-sol": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.6-terra": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.6-luna": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-5.6": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+
   // GPT-5 family
   "gpt-5-pro": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
   "gpt-5-mini": { maxInputTokens: 400_000, maxOutputTokens: 128_000 },
@@ -112,6 +120,11 @@ export function getModelProfile(modelId: string): ModelProfile {
 function getSupportedReasoningEfforts(
   modelId: string,
 ): readonly ApiReasoningEffort[] {
+  // GPT-5.6 (Sol/Terra/Luna) adds the "max" reasoning effort on top of xhigh.
+  if (modelId.startsWith("gpt-5.6")) {
+    return ["none", "low", "medium", "high", "xhigh", "max"];
+  }
+
   if (
     modelId.startsWith("gpt-5.2") ||
     modelId.startsWith("gpt-5.4") ||

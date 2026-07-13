@@ -24,6 +24,7 @@ export interface OpenAISettings {
 export type ApiReasoningEffort =
   | "high"
   | "low"
+  | "max"
   | "medium"
   | "minimal"
   | "none"
@@ -43,6 +44,7 @@ export const VALID_REASONING_EFFORT_VALUES: readonly ReasoningEffort[] = [
   "medium",
   "high",
   "xhigh",
+  "max",
 ];
 
 /**

@@ -197,6 +197,10 @@ async function handleSetReasoningEffort(): Promise<void> {
         description: "Extra-high reasoning for GPT-5.2+ where supported",
         label: "xhigh",
       },
+      {
+        description: "Maximum reasoning for GPT-5.6 (Sol/Terra/Luna)",
+        label: "max",
+      },
     ],
     {
       placeHolder: `Current: ${currentEffort}`,
@@ -223,9 +227,12 @@ async function handleSetReasoningEffort(): Promise<void> {
  */
 async function handleSetUtilityModel(): Promise<void> {
   const chatConfig = vscode.workspace.getConfiguration("chat");
-  const currentSelector = chatConfig.get<string>("utilitySmallModel") ?? "Default";
+  const currentSelector =
+    chatConfig.get<string>("utilitySmallModel") ?? "Default";
   const models = await vscode.lm.selectChatModels({ vendor: OPENAI_VENDOR });
-  const availableModels = models.toSorted((a, b) => a.name.localeCompare(b.name));
+  const availableModels = models.toSorted((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   if (availableModels.length === 0) {
     vscode.window.showWarningMessage(
@@ -250,7 +257,11 @@ async function handleSetUtilityModel(): Promise<void> {
 
   if (!selected) return;
 
-  await chatConfig.update("byokUtilityModelDefault", "none", vscode.ConfigurationTarget.Global);
+  await chatConfig.update(
+    "byokUtilityModelDefault",
+    "none",
+    vscode.ConfigurationTarget.Global,
+  );
   await chatConfig.update(
     "utilityModel",
     selected.selectorLabel,
@@ -261,7 +272,9 @@ async function handleSetUtilityModel(): Promise<void> {
     selected.selectorLabel,
     vscode.ConfigurationTarget.Global,
   );
-  vscode.window.showInformationMessage(`Utility model set to ${selected.value}.`);
+  vscode.window.showInformationMessage(
+    `Utility model set to ${selected.value}.`,
+  );
 }
 
 async function handleSetByokUtilityDefault(): Promise<void> {
@@ -271,17 +284,20 @@ async function handleSetByokUtilityDefault(): Promise<void> {
   const selected = await vscode.window.showQuickPick(
     [
       {
-        description: "Recommended when switching between BYOK providers. Reuses the currently selected main chat model.",
+        description:
+          "Recommended when switching between BYOK providers. Reuses the currently selected main chat model.",
         label: "Use Main Agent Model",
         value: "mainAgent",
       },
       {
-        description: "Use GitHub Copilot utility models for background utility flows.",
+        description:
+          "Use GitHub Copilot utility models for background utility flows.",
         label: "Use Copilot Utility Models",
         value: "copilot",
       },
       {
-        description: "Require an explicit chat.utilityModel/chat.utilitySmallModel override.",
+        description:
+          "Require an explicit chat.utilityModel/chat.utilitySmallModel override.",
         label: "No Default Utility Model",
         value: "none",
       },
@@ -301,11 +317,21 @@ async function handleSetByokUtilityDefault(): Promise<void> {
     vscode.ConfigurationTarget.Global,
   );
   if (selected.value === "mainAgent" || selected.value === "copilot") {
-    await config.update("utilityModel", undefined, vscode.ConfigurationTarget.Global);
-    await config.update("utilitySmallModel", undefined, vscode.ConfigurationTarget.Global);
+    await config.update(
+      "utilityModel",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
+    await config.update(
+      "utilitySmallModel",
+      undefined,
+      vscode.ConfigurationTarget.Global,
+    );
   }
 
-  vscode.window.showInformationMessage(`BYOK utility default set to ${selected.value}.`);
+  vscode.window.showInformationMessage(
+    `BYOK utility default set to ${selected.value}.`,
+  );
 }
 
 function formatUtilityModelSelector(name: string, vendor: string): string {

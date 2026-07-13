@@ -11,9 +11,10 @@
   <img src="https://img.shields.io/badge/VS%20Code-%3E%3D1.116.0-blue" alt="VS Code version" />
 </p>
 
-### v0.5.0
+### v0.6.0
 
-- Added utility model commands for VS Code 1.128+ BYOK utility routing. **Manage OpenAI for Copilot** now offers **Set BYOK Utility Default** (`chat.byokUtilityModelDefault`: `mainAgent` / `copilot` / `none`) and **Set Utility Model** (pick an OpenAI model from the live list; writes VS Code's global `chat.utilityModel` / `chat.utilitySmallModel`). Prefer `mainAgent` to keep utility flows scoped to the active provider.
+- Added GPT-5.6 family (Sol, Terra, Luna): 1.05M context, 128K output, all with the new `max` reasoning effort. Bare `gpt-5.6` alias routes to Sol.
+- Added `max` to the reasoning-effort setting (validated per model; GPT-5.6 only).
 
 ### v0.2.0
 
@@ -74,7 +75,7 @@ In short: if a model exists on your OpenAI account and supports chat completions
 - **Streaming** -- responses stream into the chat UI token by token
 - **Tool calling** -- full support for Copilot's tool/function calling protocol with streaming argument accumulation
 - **Vision** -- send images to multimodal models (GPT-4o, GPT-4.1, GPT-5 family)
-- **Reasoning models** -- GPT-5.x plus o1, o3, o3-mini, o4-mini with configurable reasoning effort and inline reasoning streaming
+- **Reasoning models** -- GPT-5.x (including GPT-5.6 Sol/Terra/Luna) plus o1, o3, o3-mini, o4-mini with configurable reasoning effort and inline reasoning streaming
 - **Stored conversations** -- reuses `previous_response_id` so follow-up turns send only the new tail of the chat
 - **Agent mode** -- works with VS Code's agent mode, inline edits, and ask mode
 - **Auto-discovery** -- queries `models.list()` on your OpenAI account and filters to Responses-capable chat models
@@ -93,6 +94,7 @@ The extension auto-discovers models from your account. Known families with tuned
 | GPT-5.1                  | 400K    | 128K       | Supports `none`, `low`, `medium`, `high` reasoning              |
 | GPT-5.2                  | 400K    | 128K       | Supports `none`, `low`, `medium`, `high`, `xhigh` reasoning     |
 | GPT-5.4 / 5.5            | 1.05M   | 128K       | Latest long-context GPT-5.x models; GPT-5.5 released April 2026 |
+| GPT-5.6 Sol/Terra/Luna   | 1.05M   | 128K       | GPT-5.6 tier family (July 2026); adds `max` reasoning effort. Bare `gpt-5.6` routes to Sol |
 | o1, o3, o3-mini, o4-mini | 200K    | 100K       | Reasoning models                                                |
 
 Models not in the known list still work -- they get conservative defaults (128K input / 4K output). As OpenAI releases new models, they appear automatically.
@@ -123,20 +125,6 @@ Optional: set a preferred model, custom base URL, or organization ID in the same
 | `openai-for-copilot.showReasoning`      | Stream model reasoning text inline before the final answer (default: on)                                              |
 | `openai-for-copilot.storeConversations` | Use OpenAI-stored conversations and `previous_response_id` for follow-up turns (default: on)                          |
 | `openai-for-copilot.contextSafetyMargin` | Tokens reserved on top of the output budget (default 32000, range 0-200000). Prevents context-overflow on large-window models; increase if overflow persists, decrease to use more of the window |
-
-### Utility models (VS Code 1.128+)
-
-Since VS Code 1.128, background "utility" flows (chat title generation, intent detection, commit messages, rename suggestions) do not fall back to GitHub Copilot's models when your main chat model is a BYOK/provider model. If no utility model is configured you may see `No utility model is configured for 'copilot-utility-small'`.
-
-The **Manage OpenAI for Copilot** command exposes two actions for this:
-
-- **Set BYOK Utility Default** -- writes VS Code's `chat.byokUtilityModelDefault`:
-  - `mainAgent` (recommended) -- utility flows reuse whatever main model you have selected, so they stay scoped to the active provider automatically.
-  - `copilot` -- use GitHub Copilot's utility models (requires Copilot access).
-  - `none` -- require an explicit override (below).
-- **Set Utility Model** -- pick a specific OpenAI model from the live model list. This writes VS Code's global `chat.utilityModel` / `chat.utilitySmallModel` and sets `byokUtilityModelDefault` to `none` so the explicit choice wins.
-
-Note: `chat.utilityModel` / `chat.utilitySmallModel` are global, single-valued VS Code settings shared across all providers. To keep the utility model scoped to whichever provider is active, prefer **Set BYOK Utility Default -> Use Main Agent Model**.
 
 ## How it works
 

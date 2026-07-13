@@ -272,7 +272,16 @@ export class OpenAIChatModelProvider
           modelProfile.supportedReasoningEfforts,
         );
         if (effort) {
-          requestParams.reasoning = { effort };
+          // The OpenAI Responses API accepts "max" for GPT-5.6 (Sol/Terra/Luna),
+          // but the installed openai SDK's ReasoningEffort union lags the API and
+          // does not yet list it. The value is validated against the model's
+          // supported efforts in resolveReasoningEffort, so this cast is safe.
+          // Remove the cast once the SDK type includes "max".
+          requestParams.reasoning = {
+            effort: effort as NonNullable<
+              NonNullable<typeof requestParams.reasoning>["effort"]
+            >,
+          };
         }
       }
 
