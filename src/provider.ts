@@ -17,7 +17,12 @@ import { convertMessages } from "./converters/messages";
 import { convertTools } from "./converters/tools";
 import { logger } from "./logger";
 import { OpenAIAPIClient } from "./openai-client";
-import { getModelProfile, getModelTokenLimits } from "./profiles";
+import {
+  getModelProfile,
+  getModelTokenLimits,
+  PRO_MODE_SUFFIX,
+  resolveBaseModelId,
+} from "./profiles";
 import type { ApiReasoningEffort } from "./settings";
 import { getOpenAISettings } from "./settings";
 import { statusBar } from "./status-bar";
@@ -134,6 +139,7 @@ export class OpenAIChatModelProvider
                   imageInput: profile.supportsVision,
                   toolCalling: profile.supportsToolCalling,
                 },
+                ...(model.isProMode ? { detail: "Pro mode" } : {}),
                 family: "openai-for-copilot",
                 id: model.id,
                 isUserSelectable: true,
@@ -141,7 +147,12 @@ export class OpenAIChatModelProvider
                 maxOutputTokens: limits.maxOutputTokens,
                 name: model.name,
                 tooltip: [
-                  `OpenAI - ${model.id}`,
+                  `OpenAI - ${model.baseModelId}`,
+                  ...(model.isProMode
+                    ? [
+                        'Pro mode: reasoning.mode="pro" for higher-quality answers on hard tasks (slower and more expensive).',
+                      ]
+                    : []),
                   `Input limit: ${formatTokenLimit(limits.maxInputTokens)} tokens`,
                   `Output limit: ${formatTokenLimit(limits.maxOutputTokens)} tokens`,
                 ].join("\n"),
@@ -253,8 +264,13 @@ export class OpenAIChatModelProvider
           ? options.modelOptions.max_tokens
           : model.maxOutputTokens;
 
+      // Pro-mode picker entries carry a synthetic suffix; the API only accepts
+      // the real model id, with pro requested via `reasoning.mode`.
+      const isProMode = model.id.endsWith(PRO_MODE_SUFFIX);
+      const apiModelId = resolveBaseModelId(model.id);
+
       const requestParams: ResponseCreateParamsStreaming = {
-        model: model.id,
+        model: apiModelId,
         input: converted.input as ResponseInputItem[],
         stream: true,
         store: settings.storeConversations,
@@ -293,6 +309,20 @@ export class OpenAIChatModelProvider
             >,
           };
         }
+      }
+
+      if (isProMode) {
+        // `reasoning.mode` is newer than the installed SDK's Reasoning type, so
+        // it is attached via a cast. CLI-verified 2026-09-09: pro mode composes
+        // with every supported effort level, so this merges with any effort set
+        // above rather than replacing it.
+        requestParams.reasoning = {
+          ...requestParams.reasoning,
+          mode: "pro",
+        } as NonNullable<typeof requestParams.reasoning>;
+        logger.debug("[OpenAI Provider] Pro mode enabled", {
+          model: apiModelId,
+        });
       }
 
       if (toolConfig) {

@@ -188,7 +188,10 @@ async function handleSetReasoningEffort(): Promise<void> {
   const effort = await vscode.window.showQuickPick(
     [
       { description: "Use each model's API default", label: "model-default" },
-      { description: "No reasoning where supported", label: "none" },
+      {
+        description: "No reasoning where supported (not GPT-6 Astra)",
+        label: "none",
+      },
       { description: "Minimal reasoning for GPT-5", label: "minimal" },
       { description: "Low reasoning effort", label: "low" },
       { description: "Medium reasoning effort", label: "medium" },
@@ -198,7 +201,7 @@ async function handleSetReasoningEffort(): Promise<void> {
         label: "xhigh",
       },
       {
-        description: "Maximum reasoning for GPT-5.6 (Sol/Terra/Luna)",
+        description: "Maximum reasoning for GPT-6 Astra and GPT-5.6",
         label: "max",
       },
     ],

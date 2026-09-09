@@ -28,6 +28,48 @@ export interface ModelTokenLimits {
 }
 
 /**
+ * Synthetic suffix appended to a model id to expose OpenAI's pro mode
+ * (`reasoning.mode: "pro"`) as its own entry in the model picker. It is NOT a
+ * real OpenAI model id and is stripped before any API call.
+ *
+ * A colon is deliberate: real OpenAI ids such as `gpt-5-pro`, `o1-pro` and
+ * `o3-pro` already end in `-pro`, so a `-pro` marker would be ambiguous and
+ * could make us send `reasoning.mode` to a model that rejects it. No OpenAI
+ * model id contains a colon (verified against /v1/models 2026-09-09).
+ */
+export const PRO_MODE_SUFFIX = ":pro";
+
+/**
+ * Model families that accept `reasoning.mode: "standard" | "pro"`.
+ *
+ * CLI-verified 2026-09-09 against /v1/responses: a real `mode: "pro"` request
+ * succeeds on `gpt-6-astra` and all three GPT-5.6 variants, and composes with
+ * every supported effort level. Pro mode is OpenAI-API-only -- AWS Bedrock
+ * validates the enum but rejects actual use with "`reasoning.mode` is not
+ * supported with this model".
+ */
+const PRO_MODE_CAPABLE_PREFIXES: readonly string[] = ["gpt-6", "gpt-5.6"];
+
+/**
+ * Whether a model accepts pro mode. Takes a real (unsuffixed) model id.
+ */
+export function supportsProMode(modelId: string): boolean {
+  if (modelId.endsWith(PRO_MODE_SUFFIX)) {
+    return false;
+  }
+  return PRO_MODE_CAPABLE_PREFIXES.some((prefix) => modelId.startsWith(prefix));
+}
+
+/**
+ * Strip the synthetic pro-mode suffix, yielding the real OpenAI model id.
+ */
+export function resolveBaseModelId(modelId: string): string {
+  return modelId.endsWith(PRO_MODE_SUFFIX)
+    ? modelId.slice(0, -PRO_MODE_SUFFIX.length)
+    : modelId;
+}
+
+/**
  * Known OpenAI models with their token limits. Models not in this map get
  * conservative defaults via longest-prefix lookup. More-specific prefixes must
  * appear before shorter ones (e.g. "gpt-5.2-pro" before "gpt-5.2").
@@ -39,6 +81,11 @@ export interface ModelTokenLimits {
  * OpenAI's published specs.
  */
 const MODEL_CONTEXT_WINDOWS: Record<string, ModelTokenLimits> = {
+  // GPT-6 Astra: 1.05M context, 128K output (OpenAI published specs; Bedrock
+  // reports a 131,072 hard output cap for the same model).
+  "gpt-6-astra": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+  "gpt-6": { maxInputTokens: 1_050_000, maxOutputTokens: 128_000 },
+
   // GPT-4-turbo
   "gpt-4-turbo": { maxInputTokens: 128_000, maxOutputTokens: 4_096 },
 
@@ -101,16 +148,20 @@ const MODEL_CONTEXT_WINDOWS: Record<string, ModelTokenLimits> = {
 };
 
 export function getModelProfile(modelId: string): ModelProfile {
+  const baseModelId = resolveBaseModelId(modelId);
   const isOSeries =
-    modelId.startsWith("o1") ||
-    modelId.startsWith("o3") ||
-    modelId.startsWith("o4");
-  const isGpt5 = modelId.startsWith("gpt-5");
-  const isReasoningModel = isGpt5 || isOSeries;
+    baseModelId.startsWith("o1") ||
+    baseModelId.startsWith("o3") ||
+    baseModelId.startsWith("o4");
+  // GPT-5.x and GPT-6.x are reasoning models: they reject `temperature` and
+  // take `reasoning.effort` instead.
+  const isGptReasoning =
+    baseModelId.startsWith("gpt-5") || baseModelId.startsWith("gpt-6");
+  const isReasoningModel = isGptReasoning || isOSeries;
 
   return {
     supportsReasoningEffort: isReasoningModel,
-    supportedReasoningEfforts: getSupportedReasoningEfforts(modelId),
+    supportedReasoningEfforts: getSupportedReasoningEfforts(baseModelId),
     supportsTemperature: !isReasoningModel,
     supportsToolCalling: true,
     supportsVision: !isOSeries,
@@ -120,6 +171,13 @@ export function getModelProfile(modelId: string): ModelProfile {
 function getSupportedReasoningEfforts(
   modelId: string,
 ): readonly ApiReasoningEffort[] {
+  // GPT-6 Astra spans low..max but rejects BOTH "none" and "minimal"
+  // (CLI-verified 2026-09-09: "Unsupported value: 'none' is not supported with
+  // the 'gpt-6-astra' model"). This is the one place it differs from GPT-5.6.
+  if (modelId.startsWith("gpt-6")) {
+    return ["low", "medium", "high", "xhigh", "max"];
+  }
+
   // GPT-5.6 (Sol/Terra/Luna) adds the "max" reasoning effort on top of xhigh.
   if (modelId.startsWith("gpt-5.6")) {
     return ["none", "low", "medium", "high", "xhigh", "max"];
@@ -189,15 +247,17 @@ export function getModelTokenLimits(
  * output/margin). Falls back to longest-prefix match, then a conservative default.
  */
 function resolveContextWindow(modelId: string): ModelTokenLimits {
-  if (MODEL_CONTEXT_WINDOWS[modelId]) {
-    return MODEL_CONTEXT_WINDOWS[modelId];
+  const baseModelId = resolveBaseModelId(modelId);
+
+  if (MODEL_CONTEXT_WINDOWS[baseModelId]) {
+    return MODEL_CONTEXT_WINDOWS[baseModelId];
   }
 
   let bestMatch: ModelTokenLimits | undefined;
   let bestLength = 0;
 
   for (const [knownId, limits] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
-    if (modelId.startsWith(knownId) && knownId.length > bestLength) {
+    if (baseModelId.startsWith(knownId) && knownId.length > bestLength) {
       bestMatch = limits;
       bestLength = knownId.length;
     }

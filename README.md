@@ -11,6 +11,12 @@
   <img src="https://img.shields.io/badge/VS%20Code-%3E%3D1.116.0-blue" alt="VS Code version" />
 </p>
 
+### v0.8.0
+
+- Added **GPT-6 Astra** (`gpt-6-astra`): 1.05M context, 128K output. Supports `low` through `max` reasoning effort -- it rejects both `none` and `minimal`, so those fall back to the model default.
+- Added **Pro mode as its own model entry.** Models that accept OpenAI's `reasoning.mode: "pro"` now appear twice in the model picker: the standard entry and a `… Pro` entry marked "Pro mode". Picking the Pro entry sends `reasoning.mode: "pro"` for higher-quality answers on hard tasks, at higher cost and latency. Applies to GPT-6 Astra and GPT-5.6 Sol/Terra/Luna (all verified against the live API).
+- Fixed reasoning-model detection, which only matched `gpt-5*` and would have sent `temperature` to GPT-6 models that reject it.
+
 ### v0.7.0
 
 - Added a status bar activity indicator: shows `reading models`, `streaming · N tok` (live token estimate, snaps to the exact output-token count on completion), and account/stream errors. Auto-hides when idle, so only the provider currently working is visible. Toggle via `showStatusBar` (default on).
@@ -79,7 +85,8 @@ In short: if a model exists on your OpenAI account and supports chat completions
 - **Streaming** -- responses stream into the chat UI token by token
 - **Tool calling** -- full support for Copilot's tool/function calling protocol with streaming argument accumulation
 - **Vision** -- send images to multimodal models (GPT-4o, GPT-4.1, GPT-5 family)
-- **Reasoning models** -- GPT-5.x (including GPT-5.6 Sol/Terra/Luna) plus o1, o3, o3-mini, o4-mini with configurable reasoning effort and inline reasoning streaming
+- **Reasoning models** -- GPT-6 Astra and GPT-5.x (including GPT-5.6 Sol/Terra/Luna) plus o1, o3, o3-mini, o4-mini with configurable reasoning effort and inline reasoning streaming
+- **Pro mode** -- models supporting `reasoning.mode: "pro"` get a separate `… Pro` entry in the model picker, so the slower, pricier, higher-quality mode is always an explicit choice
 - **Stored conversations** -- reuses `previous_response_id` so follow-up turns send only the new tail of the chat
 - **Agent mode** -- works with VS Code's agent mode, inline edits, and ask mode
 - **Auto-discovery** -- queries `models.list()` on your OpenAI account and filters to Responses-capable chat models
@@ -99,10 +106,24 @@ The extension auto-discovers models from your account. Known families with tuned
 | GPT-5.1                  | 400K    | 128K       | Supports `none`, `low`, `medium`, `high` reasoning              |
 | GPT-5.2                  | 400K    | 128K       | Supports `none`, `low`, `medium`, `high`, `xhigh` reasoning     |
 | GPT-5.4 / 5.5            | 1.05M   | 128K       | Latest long-context GPT-5.x models; GPT-5.5 released April 2026 |
-| GPT-5.6 Sol/Terra/Luna   | 1.05M   | 128K       | GPT-5.6 tier family (July 2026); adds `max` reasoning effort. Bare `gpt-5.6` routes to Sol |
+| GPT-5.6 Sol/Terra/Luna   | 1.05M   | 128K       | GPT-5.6 tier family (July 2026); adds `max` reasoning effort. Bare `gpt-5.6` routes to Sol. Pro mode available |
+| GPT-6 Astra              | 1.05M   | 128K       | Flagship (September 2026). Reasoning `low`-`max`; rejects `none`/`minimal`. Pro mode available |
 | o1, o3, o3-mini, o4-mini | 200K    | 100K       | Reasoning models                                                |
 
 Models not in the known list still work -- they get conservative defaults (128K input / 4K output). As OpenAI releases new models, they appear automatically.
+
+### Pro mode
+
+GPT-6 Astra and GPT-5.6 Sol/Terra/Luna accept `reasoning.mode: "pro"`, which trades speed and cost for answer quality on hard problems. Rather than hiding this behind a setting, each pro-capable model gets a second picker entry:
+
+| Picker entry | Sent to the API |
+| --- | --- |
+| `GPT-6 Astra` | `{ model: "gpt-6-astra" }` |
+| `GPT-6 Astra Pro` | `{ model: "gpt-6-astra", reasoning: { mode: "pro" } }` |
+
+Pro mode composes with the `reasoningEffort` setting, so you can run Pro at any supported effort level. Pro entries are labelled "Pro mode" in the picker and note the cost tradeoff in their tooltip.
+
+> Pro mode works only through the OpenAI API. AWS Bedrock rejects `reasoning.mode` for these same models, so the companion [`aws-bedrock-for-copilot`](https://github.com/rangan2510/aws-bedrock-for-copilot) extension does not surface Pro entries.
 
 ## Requirements
 
@@ -126,7 +147,7 @@ Optional: set a preferred model, custom base URL, or organization ID in the same
 | `openai-for-copilot.baseUrl`            | Custom API base URL (Azure OpenAI, proxy, etc.)                                                                       |
 | `openai-for-copilot.organization`       | OpenAI organization ID (only needed for multi-org keys)                                                               |
 | `openai-for-copilot.preferredModel`     | Default model ID (e.g. `gpt-5.4`)                                                                                     |
-| `openai-for-copilot.reasoningEffort`    | Reasoning depth for GPT-5.x and o-series models: `model-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `openai-for-copilot.reasoningEffort`    | Reasoning depth for GPT-5.x, GPT-6.x and o-series models: `model-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Values a model rejects are dropped so its own default applies |
 | `openai-for-copilot.showReasoning`      | Stream model reasoning text inline before the final answer (default: on)                                              |
 | `openai-for-copilot.storeConversations` | Use OpenAI-stored conversations and `previous_response_id` for follow-up turns (default: on)                          |
 | `openai-for-copilot.contextSafetyMargin` | Tokens reserved on top of the output budget (default 32000, range 0-200000). Prevents context-overflow on large-window models; increase if overflow persists, decrease to use more of the window |

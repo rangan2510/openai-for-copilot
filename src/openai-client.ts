@@ -5,7 +5,12 @@ import type {
 } from "openai/resources/responses/responses";
 
 import { logger } from "./logger";
-import { getModelProfile, getModelTokenLimits } from "./profiles";
+import {
+  getModelProfile,
+  getModelTokenLimits,
+  PRO_MODE_SUFFIX,
+  supportsProMode,
+} from "./profiles";
 import type { AuthConfig, OpenAIModelSummary } from "./types";
 
 /**
@@ -52,8 +57,19 @@ export class OpenAIAPIClient {
       const response = await this.client.models.list({ signal: abortSignal });
 
       for await (const model of response) {
-        if (isResponsesChatModel(model.id)) {
-          models.push(buildModelSummary(model.id));
+        if (!isResponsesChatModel(model.id)) {
+          continue;
+        }
+
+        models.push(buildModelSummary(model.id));
+
+        // Models that accept `reasoning.mode: "pro"` are surfaced as a second,
+        // explicitly labelled picker entry (e.g. "GPT-6 Astra Pro") rather than
+        // hidden behind a setting, so the higher-cost mode is always a
+        // deliberate choice. CLI-verified 2026-09-09 on gpt-6-astra and
+        // gpt-5.6-sol/terra/luna.
+        if (supportsProMode(model.id)) {
+          models.push(buildModelSummary(`${model.id}${PRO_MODE_SUFFIX}`));
         }
       }
     } catch (error) {
@@ -113,6 +129,7 @@ function isResponsesChatModel(modelId: string): boolean {
     "gpt-4.1",
     "gpt-4-turbo",
     "gpt-5",
+    "gpt-6",
     "o1",
     "o3",
     "o4",
@@ -122,18 +139,29 @@ function isResponsesChatModel(modelId: string): boolean {
 
 /**
  * Build a model summary from a model ID using centralized profiles.
+ *
+ * `modelId` may carry the synthetic {@link PRO_MODE_SUFFIX}. That suffix is not
+ * a real OpenAI model id: profiles/limits are resolved from the base id and the
+ * provider strips it back off before calling the API.
  */
 function buildModelSummary(modelId: string): OpenAIModelSummary {
+  const isProMode = modelId.endsWith(PRO_MODE_SUFFIX);
+  const baseModelId = isProMode
+    ? modelId.slice(0, -PRO_MODE_SUFFIX.length)
+    : modelId;
+
   const profile = getModelProfile(modelId);
   const limits = getModelTokenLimits(modelId);
 
-  const name = modelId.replace(/^gpt-/, "GPT-").replace(/^o(\d)/, "O$1");
+  const name = baseModelId.replace(/^gpt-/, "GPT-").replace(/^o(\d)/, "O$1");
 
   return {
+    baseModelId,
     id: modelId,
+    isProMode,
     maxInputTokens: limits.maxInputTokens,
     maxOutputTokens: limits.maxOutputTokens,
-    name,
+    name: isProMode ? `${name} Pro` : name,
     supportsTools: profile.supportsToolCalling,
     supportsVision: profile.supportsVision,
   };

@@ -12,7 +12,14 @@ export interface AuthConfig {
  * Summary of an OpenAI model available for chat.
  */
 export interface OpenAIModelSummary {
+  /**
+   * The real OpenAI model id to send to the API. Differs from `id` only for
+   * pro-mode entries, whose `id` carries a synthetic `:pro` suffix.
+   */
+  baseModelId: string;
   id: string;
+  /** Whether this entry requests `reasoning.mode: "pro"`. */
+  isProMode: boolean;
   maxInputTokens: number;
   maxOutputTokens: number;
   name: string;
