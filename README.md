@@ -11,6 +11,11 @@
   <img src="https://img.shields.io/badge/VS%20Code-%3E%3D1.116.0-blue" alt="VS Code version" />
 </p>
 
+### v0.9.0
+
+- Added a **`Thinking Effort` dropdown next to the model picker.** Each model advertises only the effort levels it actually accepts, so GPT-6 Astra offers `Low`-`Max` while GPT-5.6 also offers `None`, and non-reasoning models show no dropdown at all. The selection is per-model and overrides `reasoningEffort`, which remains as a fallback.
+- Removed **Set Reasoning Effort** from the management command; effort now lives in the picker dropdown.
+
 ### v0.8.0
 
 - Added **GPT-6 Astra** (`gpt-6-astra`): 1.05M context, 128K output. Supports `low` through `max` reasoning effort -- it rejects both `none` and `minimal`, so those fall back to the model default.
@@ -87,6 +92,7 @@ In short: if a model exists on your OpenAI account and supports chat completions
 - **Vision** -- send images to multimodal models (GPT-4o, GPT-4.1, GPT-5 family)
 - **Reasoning models** -- GPT-6 Astra and GPT-5.x (including GPT-5.6 Sol/Terra/Luna) plus o1, o3, o3-mini, o4-mini with configurable reasoning effort and inline reasoning streaming
 - **Pro mode** -- models supporting `reasoning.mode: "pro"` get a separate `… Pro` entry in the model picker, so the slower, pricier, higher-quality mode is always an explicit choice
+- **Per-model effort dropdown** -- a `Thinking Effort` control sits next to the model picker and offers only the levels the selected model accepts
 - **Stored conversations** -- reuses `previous_response_id` so follow-up turns send only the new tail of the chat
 - **Agent mode** -- works with VS Code's agent mode, inline edits, and ask mode
 - **Auto-discovery** -- queries `models.list()` on your OpenAI account and filters to Responses-capable chat models
@@ -147,7 +153,7 @@ Optional: set a preferred model, custom base URL, or organization ID in the same
 | `openai-for-copilot.baseUrl`            | Custom API base URL (Azure OpenAI, proxy, etc.)                                                                       |
 | `openai-for-copilot.organization`       | OpenAI organization ID (only needed for multi-org keys)                                                               |
 | `openai-for-copilot.preferredModel`     | Default model ID (e.g. `gpt-5.4`)                                                                                     |
-| `openai-for-copilot.reasoningEffort`    | Reasoning depth for GPT-5.x, GPT-6.x and o-series models: `model-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Values a model rejects are dropped so its own default applies |
+| `openai-for-copilot.reasoningEffort`    | Fallback reasoning depth. Prefer the `Thinking Effort` dropdown next to the model picker, which is per-model and overrides this. Applies when no dropdown selection has been made |
 | `openai-for-copilot.showReasoning`      | Stream model reasoning text inline before the final answer (default: on)                                              |
 | `openai-for-copilot.storeConversations` | Use OpenAI-stored conversations and `previous_response_id` for follow-up turns (default: on)                          |
 | `openai-for-copilot.contextSafetyMargin` | Tokens reserved on top of the output budget (default 32000, range 0-200000). Prevents context-overflow on large-window models; increase if overflow persists, decrease to use more of the window |

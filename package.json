@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/rangan2510/openai-for-copilot/issues"
   },
-  "version": "0.8.0",
+  "version": "0.9.0",
   "engines": {
     "vscode": "^1.116.0"
   },
@@ -102,7 +102,7 @@
             "Extra-high reasoning depth, supported by GPT-5.2 and later.",
             "Maximum reasoning depth, supported by GPT-6 Astra and GPT-5.6 (Sol/Terra/Luna)."
           ],
-          "description": "Reasoning effort for GPT-5.x, GPT-6.x and o-series models on the Responses API. Values a model doesn't support are dropped so the model's own default applies. Pro mode is selected by picking a `Pro` model entry in the model picker, not through this setting.",
+          "description": "Fallback reasoning effort for GPT-5.x, GPT-6.x and o-series models on the Responses API. Prefer the `Thinking Effort` dropdown next to the model picker, which only offers levels the selected model accepts and overrides this setting. This value applies when no dropdown selection has been made. Values a model doesn't support are dropped so the model's own default applies. Pro mode is selected by picking a `Pro` model entry in the model picker.",
           "scope": "resource"
         },
         "openai-for-copilot.showReasoning": {

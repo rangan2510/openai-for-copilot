@@ -46,13 +46,6 @@ export async function manageSettings(
       },
       {
         description: `Current: ${
-          config.get<string>("reasoningEffort") ?? "model-default"
-        }`,
-        label: "Set Reasoning Effort",
-        value: "reasoning-effort" as const,
-      },
-      {
-        description: `Current: ${
           (config.get<boolean>("showReasoning") ?? true) ? "on" : "off"
         }`,
         label: "Toggle Show Reasoning",
@@ -90,10 +83,6 @@ export async function manageSettings(
     }
     case "organization": {
       await handleSetOrganization();
-      break;
-    }
-    case "reasoning-effort": {
-      await handleSetReasoningEffort();
       break;
     }
     case "utility-model": {
@@ -176,49 +165,6 @@ async function handleSetOrganization(): Promise<void> {
     );
     vscode.window.showInformationMessage(
       value ? `Organization set to ${value}` : "Organization cleared.",
-    );
-  }
-}
-
-async function handleSetReasoningEffort(): Promise<void> {
-  const config = vscode.workspace.getConfiguration("openai-for-copilot");
-  const currentEffort =
-    config.get<string>("reasoningEffort") ?? "model-default";
-
-  const effort = await vscode.window.showQuickPick(
-    [
-      { description: "Use each model's API default", label: "model-default" },
-      {
-        description: "No reasoning where supported (not GPT-6 Astra)",
-        label: "none",
-      },
-      { description: "Minimal reasoning for GPT-5", label: "minimal" },
-      { description: "Low reasoning effort", label: "low" },
-      { description: "Medium reasoning effort", label: "medium" },
-      { description: "High reasoning effort", label: "high" },
-      {
-        description: "Extra-high reasoning for GPT-5.2+ where supported",
-        label: "xhigh",
-      },
-      {
-        description: "Maximum reasoning for GPT-6 Astra and GPT-5.6",
-        label: "max",
-      },
-    ],
-    {
-      placeHolder: `Current: ${currentEffort}`,
-      title: "Set Reasoning Effort",
-    },
-  );
-
-  if (effort) {
-    await config.update(
-      "reasoningEffort",
-      effort.label,
-      vscode.ConfigurationTarget.Global,
-    );
-    vscode.window.showInformationMessage(
-      `Reasoning effort set to ${effort.label}.`,
     );
   }
 }

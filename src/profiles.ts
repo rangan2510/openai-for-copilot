@@ -28,6 +28,34 @@ export interface ModelTokenLimits {
 }
 
 /**
+ * JSON-Schema-shaped configuration descriptor attached to a model so VS Code
+ * renders per-model controls in the chat model picker.
+ *
+ * Mirrors `LanguageModelConfigurationSchema` from VS Code's proposed
+ * `chatProvider` API. It is declared locally because the extension ships a
+ * hand-patched `vscode.d.ts` rather than enabling API proposals. Verified
+ * against VS Code 1.137: the field is forwarded to the workbench without a
+ * proposed-API check, and the picker renders any property whose `group` is
+ * `"navigation"` and whose `enum` is non-empty.
+ */
+export interface ModelConfigurationSchema {
+  properties: Record<string, ModelConfigurationProperty>;
+}
+
+/** A single configurable property within a {@link ModelConfigurationSchema}. */
+export interface ModelConfigurationProperty {
+  default?: unknown;
+  description?: string;
+  enum: readonly unknown[];
+  enumDescriptions?: readonly string[];
+  enumItemLabels?: readonly string[];
+  /** `"navigation"` renders the property as a dropdown beside the model picker. */
+  group?: string;
+  title?: string;
+  type: string;
+}
+
+/**
  * Synthetic suffix appended to a model id to expose OpenAI's pro mode
  * (`reasoning.mode: "pro"`) as its own entry in the model picker. It is NOT a
  * real OpenAI model id and is stripped before any API call.
@@ -49,6 +77,82 @@ export const PRO_MODE_SUFFIX = ":pro";
  * supported with this model".
  */
 const PRO_MODE_CAPABLE_PREFIXES: readonly string[] = ["gpt-6", "gpt-5.6"];
+
+/**
+ * Sentinel effort meaning "send no `reasoning.effort` at all", so the model
+ * applies its own default. Exposed as the first entry of the picker dropdown.
+ */
+export const MODEL_DEFAULT_EFFORT = "model-default";
+
+/** Human-readable labels for the picker dropdown, keyed by API effort value. */
+const EFFORT_LABELS: Record<string, string> = {
+  high: "High",
+  low: "Low",
+  max: "Max",
+  medium: "Medium",
+  minimal: "Minimal",
+  none: "None",
+  xhigh: "Extra High",
+};
+
+/** Hover descriptions shown beside each dropdown entry. */
+const EFFORT_DESCRIPTIONS: Record<string, string> = {
+  high: "Deep reasoning for complex tasks",
+  low: "Fast, shallow reasoning",
+  max: "Maximum reasoning depth",
+  medium: "Balanced reasoning and speed",
+  minimal: "Least reasoning the model allows",
+  none: "Skip reasoning entirely",
+  xhigh: "Extended reasoning depth",
+};
+
+/**
+ * Build the model-picker configuration schema for a model's reasoning effort.
+ *
+ * A property with `group: "navigation"` and a non-empty `enum` is rendered by
+ * VS Code as a dropdown next to the model picker (the same mechanism Copilot's
+ * own "Thinking Effort" control uses). Because the enum is per-model, users are
+ * only ever offered values that model actually accepts -- e.g. GPT-6 Astra
+ * omits `none`/`minimal`, which it rejects.
+ *
+ * Returns undefined for models without reasoning support, or when there is only
+ * one choice, since VS Code needs at least one enum entry to render anything
+ * useful.
+ */
+export function buildEffortConfigurationSchema(
+  modelId: string,
+): ModelConfigurationSchema | undefined {
+  const supported = getModelProfile(modelId).supportedReasoningEfforts;
+  if (supported.length === 0) {
+    return undefined;
+  }
+
+  const values = [MODEL_DEFAULT_EFFORT, ...supported];
+
+  return {
+    properties: {
+      reasoningEffort: {
+        default: MODEL_DEFAULT_EFFORT,
+        description:
+          "Reasoning depth for this model. Only levels this model accepts are listed.",
+        enum: values,
+        enumDescriptions: values.map((value) =>
+          value === MODEL_DEFAULT_EFFORT
+            ? "Let the model use its own default effort"
+            : (EFFORT_DESCRIPTIONS[value] ?? ""),
+        ),
+        enumItemLabels: values.map((value) =>
+          value === MODEL_DEFAULT_EFFORT
+            ? "Model default"
+            : (EFFORT_LABELS[value] ?? value),
+        ),
+        group: "navigation",
+        title: "Thinking Effort",
+        type: "string",
+      },
+    },
+  };
+}
 
 /**
  * Whether a model accepts pro mode. Takes a real (unsuffixed) model id.

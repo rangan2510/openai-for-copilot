@@ -18,8 +18,11 @@ import { convertTools } from "./converters/tools";
 import { logger } from "./logger";
 import { OpenAIAPIClient } from "./openai-client";
 import {
+  buildEffortConfigurationSchema,
   getModelProfile,
   getModelTokenLimits,
+  MODEL_DEFAULT_EFFORT,
+  type ModelConfigurationSchema,
   PRO_MODE_SUFFIX,
   resolveBaseModelId,
 } from "./profiles";
@@ -39,8 +42,23 @@ type PickerLanguageModelChatInformation = LanguageModelChatInformation & {
   readonly capabilities: LanguageModelChatInformation["capabilities"] & {
     readonly agentMode: boolean;
   };
+  /**
+   * Per-model controls rendered in the model picker. Part of VS Code's proposed
+   * `chatProvider` API, forwarded to the workbench without a proposed-API check
+   * (verified against 1.137), so it works without enabling API proposals.
+   */
+  readonly configurationSchema?: ModelConfigurationSchema;
   readonly isUserSelectable: boolean;
 };
+
+/**
+ * Per-request configuration VS Code resolves from a model's
+ * {@link ModelConfigurationSchema} (picker selection layered over schema
+ * defaults). Proposed API, so it is read through this local type.
+ */
+interface ConfiguredResponseOptions {
+  readonly modelConfiguration?: Readonly<Record<string, unknown>>;
+}
 
 export class OpenAIChatModelProvider
   implements vscode.Disposable, LanguageModelChatProvider
@@ -133,12 +151,17 @@ export class OpenAIChatModelProvider
               );
               const profile = getModelProfile(model.id);
 
+              const configurationSchema = buildEffortConfigurationSchema(
+                model.id,
+              );
+
               return {
                 capabilities: {
                   agentMode: true,
                   imageInput: profile.supportsVision,
                   toolCalling: profile.supportsToolCalling,
                 },
+                ...(configurationSchema ? { configurationSchema } : {}),
                 ...(model.isProMode ? { detail: "Pro mode" } : {}),
                 family: "openai-for-copilot",
                 id: model.id,
@@ -293,8 +316,12 @@ export class OpenAIChatModelProvider
       }
 
       if (modelProfile.supportsReasoningEffort) {
+        // The model picker's "Thinking Effort" dropdown wins over the global
+        // setting: it is per-model and only ever offers values this model
+        // accepts. The setting stays as the fallback for older VS Code builds
+        // (or if the dropdown is ever gated behind API proposals).
         const effort = resolveReasoningEffort(
-          settings.reasoningEffort,
+          this.resolveConfiguredEffort(options, settings.reasoningEffort),
           modelProfile.supportedReasoningEfforts,
         );
         if (effort) {
@@ -416,6 +443,29 @@ export class OpenAIChatModelProvider
 
       throw error;
     }
+  }
+
+  /**
+   * Resolve the reasoning effort for a request, preferring the model picker's
+   * per-model dropdown over the global setting.
+   *
+   * Returns the configured setting when the picker value is absent (older VS
+   * Code, or no schema attached) or explicitly set to "model default".
+   */
+  private resolveConfiguredEffort(options: unknown, fallback: string): string {
+    const picked = (options as ConfiguredResponseOptions | undefined)
+      ?.modelConfiguration?.reasoningEffort;
+
+    if (typeof picked !== "string") {
+      return fallback;
+    }
+
+    logger.debug("[OpenAI Provider] Using effort from model picker", {
+      reasoningEffort: picked,
+    });
+    // MODEL_DEFAULT_EFFORT falls through to resolveReasoningEffort, which drops
+    // the field so the model applies its own default.
+    return picked;
   }
 
   async provideTokenCount(
